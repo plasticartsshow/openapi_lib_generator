@@ -1,0 +1,28 @@
+[package]
+name = "openapi_lib_generator"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "olg"
+path = "src/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cargo-make = "0.36.6"
+chrono = "0.4.24"
+clap = { version = "4.1.11", features = ["derive", "unstable-doc"] }
+futures = "0.3.27"
+once_cell = "1.17.1"
+paste = "1.0.12"
+serde = { version = "1.0.158", features = ["derive"] }
+serde_yaml = "0.9.19"
+strum = { version = "0.24.1", features = ["derive"] }
+thiserror = "1.0.40"
+tokio = { version = "1.26.0", features = ["full"] }
+toml = "0.7.3"
+url = { version = "2.3.1", features = ["serde"] }
