@@ -64,8 +64,8 @@ impl MakefileSpec {
         let output_dir_path = cli.get_output_project_dir();
         let output_file_name = MakefileEnv::MAKEFILE_NAME;
         let output_file_path = output_dir_path.join(output_file_name);
-        stdfs::write(output_file_path, toml_string)
-          .map_err(MakefileGenerationError::from)?;
+        stdfs::write(&output_file_path, toml_string)?;
+        println!("Wrote makefile to `{output_file_path:?}`");
         Ok(())
       })
   }
@@ -88,7 +88,7 @@ pub struct MakefileEnv{
   pub lib_name: EnvValue,
   pub output_dir: EnvValue,
   pub open_api_generator_cli_url: EnvValue,
-  pub open_api_generator_cli_dir: EnvValue,
+  pub open_api_generator_cli_subdir: EnvValue,
   pub open_api_generator_cli_path: EnvValue,
   pub open_api_generator_cli_script: EnvValue,
   pub open_api_generator_config_file: EnvValue,
@@ -107,20 +107,20 @@ impl TryFrom<&Cli> for MakefileEnv {
     } = cli;
     let lib_name = cli.get_lib_name();
     let spec_file_name = cli.try_get_spec_file_name()?;
-    let output_project_dir_string = cli.get_output_project_dir_string();
+    let _output_project_dir_string = cli.get_output_project_dir_string();
     Ok(Self{
       api_url: EnvValue::Value(api_url.to_string()),
       api_name: EnvValue::Value(site_or_api_name.to_string()),
       lib_name: EnvValue::Value(lib_name.to_string()),
-      output_dir: EnvValue::Value(output_project_dir_string),
-      open_api_generator_cli_dir: EnvValue::Value(Self::OPEN_API_GENERATOR_CLI_DIR.to_string()),
-      open_api_generator_cli_path: EnvValue::Value( "${OPEN_API_GENERATOR_CLI_DIR}/${OPEN_API_GENERATOR_CLI_SCRIPT}".to_string()),
+      output_dir: EnvValue::Value(".".to_string()),
+      open_api_generator_cli_subdir: EnvValue::Value(Self::OPEN_API_GENERATOR_CLI_SUBDIR.to_string()),
+      open_api_generator_cli_path: EnvValue::Value( "${OPEN_API_GENERATOR_CLI_SUBDIR}/${OPEN_API_GENERATOR_CLI_SCRIPT}".to_string()),
       open_api_generator_cli_script: EnvValue::Value(Self::OPEN_API_GENERATOR_CLI_SCRIPT.to_string()),
       open_api_generator_cli_url: EnvValue::Value(Self::OPEN_API_GENERATOR_CLI_URL.to_string()),
       open_api_generator_config_file: EnvValue::Value(Self::OPEN_API_GENERATOR_CONFIG_FILE.to_string()),
-      open_api_generator_config_path: EnvValue::Value("${OUTPUT_DIR}/${OPEN_API_GENERATOR_CONFIG_FILE}".to_string()),
+      open_api_generator_config_path: EnvValue::Value("${OPEN_API_GENERATOR_CONFIG_FILE}".to_string()),
       spec_file_name: EnvValue::Value(spec_file_name),
-      spec_file_path: EnvValue::Value(r#"${OUTPUT_DIR}/${SPEC_FILE_NAME}"#.to_string()),
+      spec_file_path: EnvValue::Value(r#"${SPEC_FILE_NAME}"#.to_string()),
       spec_file_url: EnvValue::Value(api_spec_url.to_string()),
     })
   }
@@ -131,12 +131,11 @@ impl MakefileEnv {
   /// Default download url for OpenAPI Generator CLI artifact
   pub const OPEN_API_GENERATOR_CLI_URL: &'static str = "https://raw.githubusercontent.com/OpenAPITools/openapi-generator/master/bin/utils/openapi-generator-cli.sh";
   /// Default OpenAPI Generator CLI local dir
-  pub const OPEN_API_GENERATOR_CLI_DIR: &'static str = "~/bin/openapitools";
+  pub const OPEN_API_GENERATOR_CLI_SUBDIR: &'static str = "bin/openapitools";
   /// Default OpenAPI Generator CLI local executable name
   pub const OPEN_API_GENERATOR_CLI_SCRIPT: &'static str = "openapi-generator-cli";
   /// Default Makefile name
   pub const MAKEFILE_NAME: &'static str = "Makefile.toml";
-
 }
 
 /// A named [Task] specification
@@ -194,34 +193,67 @@ impl NamedTask {
   /// Makes a task that installs openapi-generator cli artifact
   pub fn make_openapi_cli_install_task() -> NamedTask {
     NamedTask {
-      name: "openapi-cli-install".to_string(),
+      name: "openapi-cli-bash-install".to_string(),
       task: Task {
         description: Some(r#"Install Open API generator CLI'."#.to_string()),
-        script: Some(ScriptValue::Text(
-          r#"
+        script: Some(ScriptValue::SingleLine(
+          r#"#!/bin/sh
           # enable the downloaded cli artifact file 
-          function enable_cli 
+          CLI_SUBDIR=$HOME/${OPEN_API_GENERATOR_CLI_SUBDIR}
+          CLI_PATH=$HOME/${OPEN_API_GENERATOR_CLI_PATH}
+          CLI_SCRIPT=${OPEN_API_GENERATOR_CLI_SCRIPT}
+          if [[ ! -s "$HOME/.bash_profile" && -s "$HOME/.profile" ]] ; then
+              PROFILE_FILE="$HOME/.profile"
+          else 
+              PROFILE_FILE="$HOME/.bash_profile"
+          fi
+          # echo $CLI_SCRIPT
+          function check_cli
           {
-              chmod u+x ${OPEN_API_GENERATOR_CLI_PATH}
-              export PATH=$PATH:${OPEN_API_GENERATOR_CLI_DIR}/
+              source $PROFILE_FILE
+              if command -v $CLI_SCRIPT >& /dev/null
+              then 
+                  echo "Install success. You can now run the \"$CLI_SCRIPT\" command"
+                  echo "After running \"source $PROFILE_FILE\""
+                  exit 0
+              else 
+                  echo "Install failed."
+                  exit 0
+              fi
+          }
+          function enable_cli
+          {
+              chmod u+x $CLI_PATH
+              line_to_add="export PATH=\$PATH:$CLI_SUBDIR/"
+              if ! grep -q "$line_to_add" "${PROFILE_FILE}" ; then 
+                  echo "Adding \"$line_to_add\" to ${PROFILE_FILE}."
+                  echo "\n # OpenAPI Generator CLI" >> $PROFILE_FILE
+                  echo "$line_to_add" >> $PROFILE_FILE
+              else 
+                  echo "Line already found in $PROFILE_FILE"
+              fi
+              check_cli
           } 
           # review the downloaded cli artifact file and optionally enable 
           function deal_with_cli 
           {
-              echo Downloaded Open API Generator CLI script at ${OPEN_API_GENERATOR_CLI_PATH}
+              echo Downloaded Open API Generator CLI script at $CLI_PATH
               echo Do you want to enable, review the script or delete it?
               select erd in "Enable" "Review" "Delete"; do
                   case $erd in
                       Enable) 
-                          enable_cli 
+                          enable_cli
+                          break
                           ;;
                       Review)
-                          less ${OPEN_API_GENERATOR_CLI_PATH}
-                          deal_with_cli 
+                          less $CLI_PATH
+                          deal_with_cli
+                          break
                           ;;
                       Delete)
-                          rm ${OPEN_API_GENERATOR_CLI_PATH}
-                          rm -rf ${OPEN_API_GENERATOR_CLI_DIR}
+                          rm $CLI_PATH
+                          rm -rf $CLI_SUBDIR
+                          exit 1
                           ;;
                   esac
               done 
@@ -229,13 +261,13 @@ impl NamedTask {
           # get the cli
           function get_cli 
           {
-              mkdir -p ${OPEN_API_GENERATOR_CLI_DIR}
-              wget -N ${OPEN_API_GENERATOR_CLI_URL} -o  ${OPEN_API_GENERATOR_CLI_PATH}
+              mkdir -p $CLI_SUBDIR
+              wget -N ${OPEN_API_GENERATOR_CLI_URL} -O $CLI_PATH
           }
   
           get_cli
           deal_with_cli
-          "#.lines().map(ToString::to_string).collect()
+          "#.to_string()
         )),
         ..Default::default()
       }
@@ -275,7 +307,7 @@ impl NamedTask {
       task: Task {
         description: Some(r#"Downloads ${API_NAME} Open API specification from '${API_URL}'."#.to_string()),
         command: Some("wget".to_string()),
-        args: Some(vv![ strings "-N", "${SPEC_FILE_NAME}", "-o", "${SPEC_FILE_PATH}", ]),
+        args: Some(vv![ strings "-N", "${SPEC_FILE_NAME}", "-O", "${SPEC_FILE_PATH}", ]),
         ..Default::default()
       }
     }

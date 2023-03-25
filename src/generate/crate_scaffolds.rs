@@ -25,17 +25,9 @@ async fn create_crate_folder(
   cli: &Cli,
 ) -> Result<(),  CrateScaffoldingError> {
   let dir_path = &cli.get_output_project_dir();
-  async {
-    dir_path.metadata()
-      .map_err(|io_error| CrateScaffoldingError::from(io_error))
-  }
-    .and_then(|metadata| async move {
-      if !metadata.is_dir() {
-        fs::create_dir_all(dir_path).await
-          .map_err(CrateScaffoldingError::from)?;
-      }
-      Ok(())
-    }).await
+  fs::remove_dir_all(dir_path).await?;
+  fs::create_dir_all(dir_path).await?;
+  Ok(())
 }
 
 /// Initialize the crate

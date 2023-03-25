@@ -85,8 +85,10 @@ impl OpenAPIRustGeneratorConfigs {
   ) -> Result<(), YAMLGenerationError> {
     let output_dir = cli.get_output_project_dir();
     let output_file_name = MakefileEnv::OPEN_API_GENERATOR_CONFIG_FILE;
-    let output_path = output_dir.join(output_file_name); 
-    let file = File::create(output_path)?;
-    serde_yaml::to_writer(file, self).map_err(From::from)
+    let output_file_path = output_dir.join(output_file_name); 
+    let file = File::create(&output_file_path)?;
+    serde_yaml::to_writer(file, self)?;
+    println!("Wrote OpenAPI rust generator configs to `{output_file_path:?}`");
+    Ok(())
   }
 }

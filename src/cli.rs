@@ -47,6 +47,7 @@ pub struct Cli {
   #[arg(long="spec")]
   pub api_spec_url: Url, 
   /// Optional library name 
+  #[arg(long="lib_name")]
   pub lib_name_opt: Option<String>,
   /// The optional output project dir
   #[arg(long="output")]
@@ -59,6 +60,12 @@ impl Cli {
   fn get_default_lib_name(&self) -> String {
     let Self {site_or_api_name, ..} = self;
     format!("{site_or_api_name}_api_lib")
+  }
+  /// Get a default project spec file name 
+  fn get_default_spec_file_name(&self) -> String {
+    let mut name_path = PathBuf::from(self.get_lib_name());
+    name_path.set_extension("yaml");
+    name_path.to_string_lossy().to_string()
   }
   /// Get the project library name 
   pub fn get_lib_name(&self) -> String {
@@ -76,9 +83,16 @@ impl Cli {
   pub fn get_output_project_dir_string(&self) -> String {
     self.get_output_project_dir().to_string_lossy().to_string()
   }
+
   /// Get spec file name as specified by [Self::api_spec_url]
   pub fn try_get_spec_file_name(&self) -> Result<String, ParameterError> {
     parameters::try_file_name_from_path_url(&self.api_spec_url)
+      .map(|mut s| {
+        if s.is_empty() { 
+          s.push_str(&self.get_default_spec_file_name()) 
+        }
+        s
+      })
   }
 }
 
