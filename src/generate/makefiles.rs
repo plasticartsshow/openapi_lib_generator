@@ -197,7 +197,7 @@ impl NamedTask {
       task: Task {
         description: Some(r#"Install Open API generator CLI'."#.to_string()),
         script: Some(ScriptValue::SingleLine(
-          r#"#!/bin/sh
+          r#"#!/bin/bash
           # enable the downloaded cli artifact file 
           CLI_SUBDIR=$HOME/${OPEN_API_GENERATOR_CLI_SUBDIR}
           CLI_PATH=$HOME/${OPEN_API_GENERATOR_CLI_PATH}
