@@ -6,7 +6,10 @@ authors = ["Anwar Hahj Jefferson-George <anwarhahjjeffersongeorge@gmail.com>"]
 license = "MIT OR Apache-2.0"
 keywords = ["OpenAPI", "generator", "library"]
 categories = ["command-line-utilities", "development-tools", "web-programming"]
-
+description = "Rust openapi lib generator"
+repository = "https://github.com/anwarhahjjeffersongeorge/openapi-lib-generator"
+documentation = "https://docs.rs/openapi-lib-generator"
+readme = "README.md"
 
 [lib]
 path = "src/lib.rs"
