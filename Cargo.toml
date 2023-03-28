@@ -2,6 +2,11 @@
 name = "openapi_lib_generator"
 version = "0.1.0"
 edition = "2021"
+authors = ["Anwar Hahj Jefferson-George <anwarhahjjeffersongeorge@gmail.com>"]
+license = "MIT OR Apache-2.0"
+keywords = ["OpenAPI", "generator", "library"]
+categories = ["command-line-utilities", "development-tools", "web-programming"]
+
 
 [lib]
 path = "src/lib.rs"
@@ -14,7 +19,8 @@ path = "src/main.rs"
 
 [dependencies]
 cargo-make = "0.36.6"
-chrono = "0.4.24"
+cargo_toml = "0.15.2"
+chrono = { version = "0.4.24", features = ["serde"] }
 clap = { version = "4.1.11", features = ["derive", "unstable-doc"] }
 futures = "0.3.27"
 once_cell = "1.17.1"

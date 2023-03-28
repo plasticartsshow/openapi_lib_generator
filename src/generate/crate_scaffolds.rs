@@ -1,7 +1,8 @@
 //! Set up target crate
 
-use crate::{cli::Cli};
+use crate::{cli::{Cli, Paths}};
 use futures::{future::{TryFutureExt}};
+use strum::EnumProperty;
 use tokio::{fs, process};
 use thiserror::Error;
 use std::{
@@ -79,5 +80,26 @@ async fn init_crate(
 pub async fn scaffold_crate(cli: &Cli) -> Result<(), CrateScaffoldingError> {
   create_crate_folder(cli).await?;
   init_crate(cli).await?;
+  setup_tree_in_crate(cli).await?;
+  setup_git_in_crate(cli).await?;
+  Ok(())
+}
+
+
+/// Setup file trees in crate
+async fn setup_tree_in_crate(cli: &Cli) -> Result<(), CrateScaffoldingError> {
+  // let crate_dir_path = cli.get_output_project_dir();
+  let crate_temp_dir_path = cli.get_output_project_subpath(&Paths::TempDir);
+  fs::create_dir_all(crate_temp_dir_path).await?;
+  Ok(())
+}
+
+
+/// Setup git details in crate 
+async fn setup_git_in_crate(cli: &Cli) -> Result<(), CrateScaffoldingError> {
+  // let crate_dir_path = cli.get_output_project_dir();
+  let crate_temp_dir_str = Paths::TempDir.get_str("path").expect("must get temp dir path");
+  let gitignore_path = cli.get_output_project_subpath(&Paths::GitignoreFile);
+  fs::write(&gitignore_path, &format!("\n/{crate_temp_dir_str}")).await?;
   Ok(())
 }

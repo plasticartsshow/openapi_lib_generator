@@ -9,6 +9,7 @@ use url::Url;
 pub enum ParameterError {
   #[error("API path has no segments {0}")] APIPathNeedsSegments(Url),    
   #[error("API path segments has no last")] APIPathSegmentsNeedsLast,    
+  #[error("Must provide API spec url if no local file given")] APIUrlNeededIfNoLocalFile,    
 }
 
 /// Get file name from path

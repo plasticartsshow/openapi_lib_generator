@@ -2,7 +2,11 @@
 
 use crate::{
   cli::Cli,
+  fs,
   generate::{
+    errors::{
+      ParameterError
+    },
     makefiles::{MakefileEnv},
   }
 }; 
@@ -10,7 +14,6 @@ use serde::{Deserialize, Serialize};
 use serde_yaml::{Error as SerdeYAMLError};
 use thiserror::Error;
 use std::{
-  fs::{File}, 
   io::{Error as IOError,}, 
   // path::{Path},
 };
@@ -19,6 +22,7 @@ use std::{
 pub enum YAMLGenerationError {
   #[error(transparent)] IOError(#[from] IOError),
   #[error(transparent)] SerdeYAMLError(#[from] SerdeYAMLError),
+  #[error(transparent)] ParameterError(#[from] ParameterError),
 }
 
 /// Rust OpenAPI Generator Configs  
@@ -78,17 +82,36 @@ impl OpenAPIRustGeneratorConfigs {
       ..Default::default()
     }
   }
+  /// Copy spec file if applicable
+  pub async fn copy_spec_file (&self, cli: &Cli) -> Result<(), YAMLGenerationError> {
+    if let Some(local_api_spec_filepath) = cli.inner_cli.local_api_spec_filepath_opt.as_ref() {
+      let spec_file_name = cli.try_get_spec_file_name()?;
+      let contents = tokio::fs::read(
+        local_api_spec_filepath
+      ).await?;
+      fs::write(
+        spec_file_name,
+        contents,
+        Some("Copy spec file")
+      ).await?;
+      Ok(())
+    } else {
+      Ok(())
+    }
+  }
   /// Write configs to yaml file 
-  pub fn write_to_yaml_file(
+  pub async fn write_to_yaml_file(
     &self, 
     cli: &Cli,
   ) -> Result<(), YAMLGenerationError> {
     let output_dir = cli.get_output_project_dir();
     let output_file_name = MakefileEnv::OPEN_API_GENERATOR_CONFIG_FILE;
     let output_file_path = output_dir.join(output_file_name); 
-    let file = File::create(&output_file_path)?;
-    serde_yaml::to_writer(file, self)?;
-    println!("Wrote OpenAPI rust generator configs to `{output_file_path:?}`");
+    fs::write(
+      output_file_path,
+      serde_yaml::to_string(self)?,
+      Some("OpenAPI rust generator configs"),
+    ).await?;
     Ok(())
   }
 }
