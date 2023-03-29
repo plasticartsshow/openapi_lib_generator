@@ -2,7 +2,7 @@
 
 use crate::{cli::{Cli, InnerCli, Paths}, generate::*}; 
 use thiserror::Error;
-use tokio::{fs};
+use fs_err::{tokio as fs};
 use std::{io::{Error as IOError}};
 /// Errors that can happen with yaml generation
 #[derive(Debug, Error)]

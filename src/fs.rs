@@ -1,6 +1,6 @@
 //! Filesystem operations
 use std::{io::{Error as IOError}, path::{Path}};
-use tokio::{fs};
+use fs_err::{tokio as fs};
 
 /// Write to file with logging
 pub async fn write(

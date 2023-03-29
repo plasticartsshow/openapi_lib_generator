@@ -2,7 +2,7 @@
 
 use crate::{
   cli::Cli,
-  fs,
+  fs::{write},
   generate::{
     errors::{
       ParameterError
@@ -10,6 +10,7 @@ use crate::{
     makefiles::{MakefileEnv},
   }
 }; 
+use fs_err::{tokio as fs};
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Error as SerdeYAMLError};
 use thiserror::Error;
@@ -86,10 +87,10 @@ impl OpenAPIRustGeneratorConfigs {
   pub async fn copy_spec_file (&self, cli: &Cli) -> Result<(), YAMLGenerationError> {
     if let Some(local_api_spec_filepath) = cli.inner_cli.local_api_spec_filepath_opt.as_ref() {
       let spec_file_name = cli.try_get_spec_file_name()?;
-      let contents = tokio::fs::read(
+      let contents = fs::read(
         local_api_spec_filepath
       ).await?;
-      fs::write(
+      write(
         spec_file_name,
         contents,
         Some("Copy spec file")
@@ -107,7 +108,7 @@ impl OpenAPIRustGeneratorConfigs {
     let output_dir = cli.get_output_project_dir();
     let output_file_name = MakefileEnv::OPEN_API_GENERATOR_CONFIG_FILE;
     let output_file_path = output_dir.join(output_file_name); 
-    fs::write(
+    write(
       output_file_path,
       serde_yaml::to_string(self)?,
       Some("OpenAPI rust generator configs"),

@@ -1,9 +1,10 @@
 //! Set up target crate
 
 use crate::{cli::{Cli, Paths}};
+use fs_err::{tokio as fs};
 use futures::{future::{TryFutureExt}};
 use strum::EnumProperty;
-use tokio::{fs, process};
+use tokio::{process};
 use thiserror::Error;
 use std::{
   io::{Error as IOError,}, 
@@ -15,20 +16,24 @@ use std::{
 #[derive(Debug, Error)]
 pub enum CrateScaffoldingError{ 
   #[error(transparent)] IOError(#[from] IOError),
+  #[error("Cannot scaffold in a directory that can't be confirmed as empty {0}: It's hella dangerous")] NonEmptyTargetDir(PathBuf),
   #[error("Could not find crate dir at {0}")] MissingCrateDir(PathBuf),
   #[error("Cargo init project at `{crate_dir}` failed with `{error_string}`  ")] CargoInitFailed{
     crate_dir: PathBuf, error_string: String
   },
 }
 
-/// Create the folder for the crate if it does not exist
-async fn create_crate_folder(
+/// Create the folder for the crate if it does not exist, make sure the directory is empty
+async fn create_crate_folder_and_check_empty(
   cli: &Cli,
 ) -> Result<(),  CrateScaffoldingError> {
   let dir_path = &cli.get_output_project_dir();
-  fs::remove_dir_all(dir_path).await?;
   fs::create_dir_all(dir_path).await?;
-  Ok(())
+  if fs::read_dir(dir_path).await?.next_entry().await?.is_some() {
+    Err(CrateScaffoldingError::NonEmptyTargetDir(dir_path.clone()))
+  } else {
+    Ok(())
+  }
 }
 
 /// Initialize the crate
@@ -78,7 +83,7 @@ async fn init_crate(
 
 /// Do all crate scaffolding jobs
 pub async fn scaffold_crate(cli: &Cli) -> Result<(), CrateScaffoldingError> {
-  create_crate_folder(cli).await?;
+  create_crate_folder_and_check_empty(cli).await?;
   init_crate(cli).await?;
   setup_tree_in_crate(cli).await?;
   setup_git_in_crate(cli).await?;
