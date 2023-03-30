@@ -25,7 +25,7 @@ mod defaults {
 }
 use defaults::*;
  
-/// CLI
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Cli{
   pub inner_cli: InnerCli,
@@ -66,9 +66,17 @@ pub enum CLIError {
   #[error(transparent)]YAMLGenerationError(#[from] YAMLGenerationError),
 }
 
-/// Inner  CLI Arguments
+/// =================== OpenAPI client  crate generator ====================
+/// 
+///  ___     ___     //=//  ___      /----\     ___  \\=\\     ___     ___
+/// /  /    /  /    //  \\  \  \    /  /\  \   /  /  //  \\    \  \    \  \
+/// |  \___/   \___// /\ \\__\  \__|  |__|  |_/  /__// /\ \\___/   \___/   |
+///  \_______/\______/  \_____________________________/  \______/\________/ 
+/// Generate a client crate for the given OpenAPI—compliant web application.  
+/// The specifications must be provided either as a url or a local file.   
+/// ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 #[derive(Clone, Deserialize, Parser, Serialize)]
-#[command(about = "Rust crate generator using Open API specifications.")]
+#[command(author, version, about, verbatim_doc_comment )]
 pub struct InnerCli {
   /// The site or app name. Will be used to determine generated crate name
   #[arg(long="name")]

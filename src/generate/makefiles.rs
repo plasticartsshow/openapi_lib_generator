@@ -1,9 +1,11 @@
 //! Makefile tasks
 use cli as cargo_make;
+use quote::quote;
 use crate::{
   cli::{Cli, InnerCli, Paths}, 
   fs,
   generate::*,
+  vv,
 };
 use cargo_make::{types::*};
 use futures::{TryFutureExt};
@@ -17,11 +19,7 @@ use strum::{EnumProperty};
 use thiserror::Error;
 use toml::{ser::Error as TomlSerError};
 use serde_yaml::{Error as SerdeYAMLError};
-/// Just makes a vec of specified items from arguments
-macro_rules! vv {
-  (strings $($e:expr,)*) => {{vec![$($e.to_string(),)* ]}};
-  (dep_names $($e:expr,)*) => {{vec![$(DependencyIdentifier::Name($e.to_string()),)* ]}};
-} 
+
 
 /// The makefile specification
 #[derive(Debug, Deserialize, Serialize)]
@@ -90,6 +88,7 @@ pub enum MakefileGenerationError {
   #[error(transparent)] IOError(#[from]IOError),
   #[error(transparent)] CargoConfigError(#[from]CargoConfigError),
   #[error(transparent)] ParameterError(#[from]ParameterError),
+  #[error(transparent)] READMEGenerationError(#[from]READMEGenerationError),
   #[error(transparent)] SerdeYAMLError(#[from]SerdeYAMLError),
   #[error(transparent)] TomlSerError(#[from]TomlSerError),
 }
@@ -100,6 +99,7 @@ pub struct MakefileEnv{
   pub api_url: EnvValue,
   pub api_name: EnvValue,  
   pub lib_name: EnvValue,
+  pub original_output_dir: EnvValue,
   pub output_dir: EnvValue,
   pub output_temp_dir: EnvValue,
   pub open_api_generator_cli_url: EnvValue,
@@ -123,14 +123,20 @@ impl TryFrom<&Cli> for MakefileEnv {
     } = &cli.inner_cli;
     let lib_name = cli.get_lib_name();
     let spec_file_name = cli.try_get_spec_file_name()?;
-    let _output_project_dir_string = cli.get_output_project_dir_string();
+    let output_project_dir_string = cli.get_output_project_dir_string();
     let output_project_temp_dir_string = Paths::TempDir.get_str("path").expect("must get temp dir");
     let api_spec_url_string = api_spec_url_opt.as_ref().map(|api_url| api_url.to_string()).unwrap_or_default();
     Ok(Self{
       api_url: EnvValue::Value(api_url.to_string()),
       api_name: EnvValue::Value(site_or_api_name.to_string()),
       lib_name: EnvValue::Value(lib_name.to_string()),
-      output_dir: EnvValue::Value(".".to_string()),
+      original_output_dir: EnvValue::Value(output_project_dir_string),
+      output_dir: EnvValue::Script(EnvValueScript { 
+        script: vv![strings "pwd",], 
+        multi_line: None, 
+        condition: None, 
+        depends_on: None,
+      }),
       output_temp_dir: EnvValue::Value(format!("./{output_project_temp_dir_string}")),
       open_api_generator_cli_subdir: EnvValue::Value(Self::OPEN_API_GENERATOR_CLI_SUBDIR.to_string()),
       open_api_generator_cli_path: EnvValue::Value( "${OPEN_API_GENERATOR_CLI_SUBDIR}/${OPEN_API_GENERATOR_CLI_SCRIPT}".to_string()),
@@ -187,6 +193,8 @@ impl NamedTask {
         args: Some(vv![strings 
           "fix", 
           "--broken-code",
+          "--edition",
+          "--edition-idioms",
           "--allow-dirty",
           "--all-targets",
           "--all-features",
@@ -216,26 +224,42 @@ impl NamedTask {
   pub fn make_generate_all_task(cli: &Cli) -> Result<NamedTask, MakefileGenerationError> {
     let name = "generate-all".to_string();
     let cargo_configurator = cargos::CargoConfigurator::new(cli)?;
-    let configurator_yaml = serde_yaml::to_string(&cargo_configurator)?;
+    let cargo_configurator_yaml = serde_yaml::to_string(&cargo_configurator)?;
+    let readme_generator = readmes::READMEGenerator::new(cli)?;
+    let readme_generator_yaml = serde_yaml::to_string(&readme_generator)?;
     let this_crate_name = cargo_configurator.this_crate_name.to_string();
     let this_crate_ver = cargo_configurator.this_crate_ver.to_string();
     // let cargo_toml_path  = Paths::CargoTomlFile.get_str("path").expect("must get cargo toml path");
-    let script_string = trim_lines(&format!("
-      //! ```cargo
+    let script_dependencies_doc = format!("//! ```cargo
       //! [dependencies]
       //! {this_crate_name} = {{ version = \"{this_crate_ver}\" }}
       //! serde_yaml = {{ version = \"0.9.19\" }}
       //! tokio = {{ version = \"1.26.0\", features = [\"full\"] }}
       //! ```
-      use {this_crate_name}::generate{{ cli::CLIError, cargos }};
+    ");
+    let script_tokens = quote!{
+      use {this_crate_name}::{{ 
+        cli::CLIError, 
+        generate::{{ 
+          cargos::CargoConfigurator,
+          readmes::READMEGenerator 
+        }} 
+      }};
+      mod yamls {
+        pub const cargo_configurator_yaml: &'static str = #cargo_configurator_yaml;
+        pub const readme_generator_yaml: &'static str = #readme_generator_yaml;
+      }
+
       #[tokio::main]
-      fn main() -> Result<(), CLIError>  {{
-        let configurator_yaml: &'static str = \"{configurator_yaml}\";
-        let cargo_configurator: cargos::CargoConfigurator = serde_yaml::from_str(configurator_yaml)?;
+      async fn main() -> Result<(), CLIError>  {{
+        let cargo_configurator: CargoConfigurator = serde_yaml::from_str(yamls::cargo_configurator_yaml)?;
         cargo_configurator.update_cargo_toml().await?;
+        let readme_generator: READMEGenerator = serde_yaml::from_str(yamls::readme_generator_yaml)?;
+        
         Ok(())
       }}
-    "));
+    };
+    let script_string = trim_lines(&format!("{script_dependencies_doc}\n{script_tokens}"));
     Ok(NamedTask { 
       name, 
       task: Task{
