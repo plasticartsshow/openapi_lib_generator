@@ -1,0 +1,12 @@
+[env]
+TEST_API_URL = "https://www.example.example"
+TEST_API_NAME = "petshoppe"
+
+[tasks.test-generate-with-local-path]
+command = "cargo"
+args = ["run", "--", "--name=${TEST_API_NAME}", "--api-url=${TEST_API_URL}", "test-generation", "--generator-crate-local-path", "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",]
+
+[tasks.test-generate-with-local-repo]
+command = "cargo"
+args = ["run", "--", "--name=${TEST_API_NAME}", "--api-url=${TEST_API_URL}", "test-generation", "--generator-crate-repo-url", "${CARGO_MAKE_CURRENT_TASK_INITIAL_MAKEFILE_DIRECTORY}",]
+

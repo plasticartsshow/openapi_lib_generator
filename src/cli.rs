@@ -46,36 +46,34 @@ impl Cli {
   /// Instantiate 
   pub async fn new() -> Result<Self, CLIError> {
     let mut inner_cli = InnerCli::parse();
-    if inner_cli.local_api_spec_filepath_opt.is_none() && inner_cli.api_spec_url_opt.is_none() {
-      Err(ParameterError::APIUrlNeededIfNoLocalFile.into())
-    } else {
-      let InnerCli {
-        command, 
-        output_project_dir_opt, 
-        local_api_spec_filepath_opt, 
-        ..
-      } = &mut inner_cli;
-      if let Some(SubCommands::TestGeneration { 
-        // generator_crate_local_path_opt, 
-        // generator_crate_repo_url_opt ,
-        ..
-      }) = command.as_mut() {
-        // use the temp directory 
-        let temp_root_path = utils::get_temp_root_dir();
-        let temp_subdir_path = utils::get_temp_subdir();
-        if local_api_spec_filepath_opt.is_none() {
-          let yaml_test_spec_path = yamls::create_testing_spec_file(&temp_root_path).await?;
-          let _ = local_api_spec_filepath_opt.replace(yaml_test_spec_path);
-        }
-        if output_project_dir_opt.is_none() {
-          let _ = output_project_dir_opt.replace(temp_subdir_path);
-        }
+    let InnerCli {
+      command, 
+      output_project_dir_opt, 
+      local_api_spec_filepath_opt, 
+      ..
+    } = &mut inner_cli;
+    if let Some(SubCommands::TestGeneration { 
+      // generator_crate_local_path_opt, 
+      // generator_crate_repo_url_opt ,
+      ..
+    }) = command.as_mut() {
+      // use the temp directory 
+      let temp_root_path = utils::get_temp_root_dir();
+      let temp_subdir_path = utils::get_temp_subdir();
+      if local_api_spec_filepath_opt.is_none() {
+        let yaml_test_spec_path = yamls::create_testing_spec_file(&temp_root_path).await?;
+        let _ = local_api_spec_filepath_opt.replace(yaml_test_spec_path);
       }
-      Ok(Self {
-        generation_timestamp: Utc::now(),
-        inner_cli
-      })
+      if output_project_dir_opt.is_none() {
+        let _ = output_project_dir_opt.replace(temp_subdir_path);
+      }
+    } else if inner_cli.local_api_spec_filepath_opt.is_none() && inner_cli.api_spec_url_opt.is_none() {
+      Err(ParameterError::APIUrlNeededIfNoLocalFile.into())
     }
+    Ok(Self {
+      generation_timestamp: Utc::now(),
+      inner_cli
+    })
   }
 }
 
