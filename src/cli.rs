@@ -67,8 +67,9 @@ impl Cli {
       if output_project_dir_opt.is_none() {
         let _ = output_project_dir_opt.replace(temp_subdir_path);
       }
-    } else if inner_cli.local_api_spec_filepath_opt.is_none() && inner_cli.api_spec_url_opt.is_none() {
-      Err(ParameterError::APIUrlNeededIfNoLocalFile.into())
+    } else if inner_cli.local_api_spec_filepath_opt.is_none() 
+      && inner_cli.api_spec_url_opt.is_none() {
+      return Err(ParameterError::APIUrlNeededIfNoLocalFile.into());
     }
     Ok(Self {
       generation_timestamp: Utc::now(),
