@@ -2,7 +2,7 @@
 use cli as cargo_make;
 use quote::quote;
 use crate::{
-  cli::{Cli, InnerCli, Paths}, 
+  cli::{Cli, SubCommands, InnerCli, Paths}, 
   fs,
   generate::*,
   vv,
@@ -25,7 +25,7 @@ use serde_yaml::{Error as SerdeYAMLError};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MakefileSpec {
   env: MakefileEnv,
-  tasks: HashMap<String, Task>,
+  tasks: HashMap<TaskNames, Task>,
 }
 impl TryFrom<&Cli> for MakefileSpec {
   type Error = MakefileGenerationError;
@@ -169,11 +169,11 @@ impl MakefileEnv {
 /// A named [Task] specification
 #[derive(Deserialize, Serialize)]
 pub struct NamedTask{
-  pub name: String,
+  pub name: TaskNames,
   pub task: Task,
 }
 impl NamedTask {
-  /// Code generator optiosn 
+  /// Code generator options
   const CODE_GENERATION_OPTS: Lazy<Vec<String>> = Lazy::new(|| vv![strings
     "generate", 
     "--generator-name", "rust",
@@ -186,7 +186,7 @@ impl NamedTask {
   /// Makes a task that does cargo fix  
   pub fn make_cargo_fix_task() -> NamedTask {
     NamedTask { 
-      name: "cargo-fix-generated".to_string(), 
+      name: TaskNames::CargoFixGenerated, 
       task: Task {
         description: Some(r#"Fix ${LIB_NAME} project generated code'."#.to_string()),
         command: Some("cargo".to_string()),
@@ -208,7 +208,7 @@ impl NamedTask {
   /// Makes a task that scaffolds the crate 
   pub fn make_crate_scaffold_task() -> NamedTask {
     NamedTask { 
-      name: "crate-scaffold".to_string(), 
+      name: TaskNames::CrateScaffold, 
       task: Task {
         description: Some(r#"Setup ${LIB_NAME} project'."#.to_string()),
         dependencies: Some(vv![ dep_names
@@ -222,7 +222,7 @@ impl NamedTask {
   
   /// Makes a task that does all of the generation steps 
   pub fn make_generate_all_task(cli: &Cli) -> Result<NamedTask, MakefileGenerationError> {
-    let name = "generate-all".to_string();
+    let name = TaskNames::GenerateAll;
     let cargo_configurator = cargos::CargoConfigurator::new(cli)?;
     let cargo_configurator_yaml = serde_yaml::to_string(&cargo_configurator)?;
     let readme_generator = readmes::READMEGenerator::new(cli)?;
@@ -230,9 +230,39 @@ impl NamedTask {
     let this_crate_name = cargo_configurator.this_crate_name.to_string();
     let this_crate_ver = cargo_configurator.this_crate_ver.to_string();
     // let cargo_toml_path  = Paths::CargoTomlFile.get_str("path").expect("must get cargo toml path");
+    let default_crate_dependency_string = format!("{this_crate_name} = {{ version = \"{this_crate_ver}\" }}");
+    let this_crate_dependency_string = if let Some(SubCommands::TestGeneration{
+      generator_crate_local_path_opt: generator_path_opt, generator_crate_repo_url_opt: generator_repo_opt, ..
+    }) = &cli.inner_cli.command {
+      match generator_path_opt {
+        Some(generator_path) => {
+          let this_crate_path_str = generator_path.to_string_lossy();
+          format!("{this_crate_name} = \
+            {{ version = \"{this_crate_ver}\", \
+            path = \"{this_crate_path_str}\" }} "
+          )
+        },
+        None => {
+          match generator_repo_opt {
+            Some(generator_repo) => {
+              let this_crate_repo_str = generator_repo.as_str();
+              format!("{this_crate_name} = \
+                {{ version = \"{this_crate_ver}\", \
+                git = \"{this_crate_repo_str}\" }} "
+              )
+            },
+            None => {
+              default_crate_dependency_string
+            }
+          }
+        }
+      }
+    } else {
+      default_crate_dependency_string
+    };
     let script_dependencies_doc = format!("//! ```cargo
       //! [dependencies]
-      //! {this_crate_name} = {{ version = \"{this_crate_ver}\" }}
+      //! {this_crate_dependency_string}
       //! serde_yaml = {{ version = \"0.9.19\" }}
       //! tokio = {{ version = \"1.26.0\", features = [\"full\"] }}
       //! ```
@@ -281,10 +311,10 @@ impl NamedTask {
   /// Makes a task that generates the code lib from the openapi spec
   pub fn make_lib_code_generator_task(is_dry_run: Option<bool>) -> NamedTask {
     let mut args = Self::CODE_GENERATION_OPTS.clone();
-    let mut name = "lib-code-generate".to_string();
+    let mut name = TaskNames::LibCodeGenerate;
     if let Some(true) = is_dry_run {
       args.push("--dry-run".to_string());
-      name.push_str("-dry-run"); 
+      name = TaskNames::LibCodeGenerateDryRun;
     }
     NamedTask {
       name,
@@ -329,7 +359,7 @@ impl NamedTask {
   /// Makes a task that checks openapi-generator cli artifact
   pub fn make_openapi_cli_check_task() -> NamedTask {
     NamedTask{
-      name: "openapi-cli-check".to_string(),
+      name: TaskNames::OpenapiCliCheck,
       task: Task {
         description: Some("Check that openapi cli generator tool is installed".to_string()),
         command: Some("command".to_string()),
@@ -342,7 +372,7 @@ impl NamedTask {
   /// Makes a task that installs openapi-generator cli artifact
   pub fn make_openapi_cli_install_task() -> NamedTask {
     NamedTask {
-      name: "openapi-cli-bash-install".to_string(),
+      name: TaskNames::OpenapiCliBashInstall,
       task: Task {
         description: Some(r#"Install Open API generator CLI'."#.to_string()),
         script: Some(ScriptValue::SingleLine(
@@ -426,7 +456,7 @@ impl NamedTask {
   /// Makes a task that cleans a library directory
   pub fn make_output_dir_clean_task() -> NamedTask {
     NamedTask {
-      name: "output-dir-clean".to_string(),
+      name: TaskNames::OutputDirClean,
       task: Task {
         description: Some(r#"Setup ${LIB_NAME} output dir at ${OUTPUT_DIR}'."#.to_string()),
         command: Some("rm".to_string()),
@@ -439,7 +469,7 @@ impl NamedTask {
   /// Makes a task that sets up a library directory
   pub fn make_output_dir_create_task() -> NamedTask {
     NamedTask {
-      name: "output-dir-create".to_string(),
+      name: TaskNames::OutputDirCreate,
       task: Task {
         description: Some(r#"Create ${LIB_NAME} output dir at ${OUTPUT_DIR}'."#.to_string()),
         command: Some("mkdir".to_string()),
@@ -452,7 +482,7 @@ impl NamedTask {
   /// Makes a task that downloads default spec if known
   pub fn make_spec_download_default_task() -> NamedTask {
     NamedTask { 
-      name: "spec-download-default".to_string(), 
+      name: TaskNames::SpecDownloadDefault, 
       task: Task {
         description: Some(r#"Downloads ${API_NAME} Open API specification from '${API_URL}'."#.to_string()),
         command: Some("wget".to_string()),
@@ -464,7 +494,7 @@ impl NamedTask {
   /// Makes a task that downloads spec if known
   pub fn make_spec_download_task() -> NamedTask {
     NamedTask { 
-      name: "spec-download".to_string(), 
+      name: TaskNames::SpecDownload, 
       task: Task {
         description: Some(r#"Downloads ${API_NAME} Open API specification from specified vararg'."#.to_string()),
         command: Some("wget".to_string()),
@@ -475,29 +505,19 @@ impl NamedTask {
   }
 }
 
-
-// /// A task that uses the openapi spec to generate code
-// pub const CodeGeneratorTask: Lazy<Task> = Lazy::new(|| {
-//   Task {
-//     description: Some(r#"Generates ${API_NAME} Rust code"#.to_string()),
-//     ..Default::default()
-//   }
-// });
-// /// A task that uses the open api spec to generate documentation
-// pub const DocumentationGeneratorTask: Lazy<Task> = Lazy::new(|| {
-//   Task {
-//     ..Default::default()
-//   }
-// });
-// /// A task that uses the open api spec to generate tests 
-// pub const TestGeneratorTask: Lazy<Task> = Lazy::new(|| {
-//   Task {
-//     ..Default::default()
-//   }
-// });
-// /// A task that runs the generated tests
-// pub const TestRunnerTask: Lazy<Task> = Lazy::new(|| {
-//   Task {
-//     ..Default::default()
-//   }
-// });
+/// Names of tasks 
+#[derive(Clone, Copy, Debug, Deserialize, Error, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, strum::AsRefStr,)]
+#[strum(serialize_all = "kebab-case")]
+pub enum TaskNames {
+  #[error("A task that does cargo fix")] CargoFixGenerated,
+  #[error("A task that scaffolds the crate")] CrateScaffold,
+  #[error("A task that does all of the generation steps ")] GenerateAll,
+  #[error("A task that generates the code lib from the openapi spec")] LibCodeGenerate,
+  #[error("A task that does a DRY RUN of generating the code lib from the openapi spec")] LibCodeGenerateDryRun,
+  #[error("A task that checks openapi-generator cli artifact")] OpenapiCliCheck,
+  #[error("A task that installs openapi-generator cli artifact")] OpenapiCliBashInstall,
+  #[error("A task that cleans a library directory")] OutputDirClean,
+  #[error("A task that sets up a library directory")] OutputDirCreate,
+  #[error("A task that downloads default spec if known")] SpecDownloadDefault,
+  #[error("A task that downloads spec if known")] SpecDownload,
+}

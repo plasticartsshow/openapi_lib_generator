@@ -2,9 +2,12 @@
 use chrono::{DateTime, Utc};
 use clap::{
   Parser, 
-  // Subcommand,
+  Subcommand,
 }; 
-use crate::{generate::{parameters, errors::*}};
+use crate::{
+  generate::{parameters, errors::*, utils, yamls}, 
+  testing::{TestingError}
+};
 use once_cell::{sync::Lazy};
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Error as SerdeYAMLError};
@@ -41,11 +44,32 @@ impl Cli {
     self.generation_timestamp.to_rfc3339()
   }
   /// Instantiate 
-  pub fn new() -> Result<Self, CLIError> {
-    let inner_cli = InnerCli::parse();
+  pub async fn new() -> Result<Self, CLIError> {
+    let mut inner_cli = InnerCli::parse();
     if inner_cli.local_api_spec_filepath_opt.is_none() && inner_cli.api_spec_url_opt.is_none() {
       Err(ParameterError::APIUrlNeededIfNoLocalFile.into())
     } else {
+      let InnerCli {
+        command, 
+        output_project_dir_opt, 
+        local_api_spec_filepath_opt, 
+        ..
+      } = &mut inner_cli;
+      if let Some(SubCommands::TestGeneration { 
+        // generator_crate_local_path_opt, 
+        // generator_crate_repo_url_opt ,
+        ..
+      }) = command.as_mut() {
+        // use the temp directory 
+        let temp_root_path = utils::get_temp_dir();
+        if local_api_spec_filepath_opt.is_none() {
+          let yaml_test_spec_path = yamls::create_testing_spec_file(&temp_root_path).await?;
+          let _ = local_api_spec_filepath_opt.replace(yaml_test_spec_path);
+        }
+        if output_project_dir_opt.is_none() {
+          let _ = output_project_dir_opt.replace(temp_root_path);
+        }
+      }
       Ok(Self {
         generation_timestamp: Utc::now(),
         inner_cli
@@ -64,6 +88,28 @@ pub enum CLIError {
   #[error(transparent)]READMEGenerationError(#[from] READMEGenerationError),
   #[error(transparent)]SerdeYAMLError(#[from] SerdeYAMLError),
   #[error(transparent)]YAMLGenerationError(#[from] YAMLGenerationError),
+  #[error(transparent)]TestingError(#[from] TestingError),
+}
+
+
+/// Subcommands for the [InnerCli]
+#[derive(Clone, Deserialize, Serialize, Subcommand)]
+pub enum SubCommands {
+  /// Tests code generation 
+  /// 
+  /// You MAY provide EITHER of a generator path or a generator repo url pointing to the generator crate 
+  #[command(rename_all = "kebab-case", verbatim_doc_comment)]
+  TestGeneration {
+    /// This is the path to the crate THIS CLI came from
+    #[arg(
+      long, 
+      required_unless_present("generator_crate_repo_url_opt"),
+    )]
+    generator_crate_local_path_opt: Option<PathBuf>,
+    /// This is the URL to the git repo THIS CLI should come from
+    #[arg(long)]
+    generator_crate_repo_url_opt: Option<Url>,
+  }
 }
 
 /// =================== OpenAPI client  crate generator ====================
@@ -99,8 +145,8 @@ pub struct InnerCli {
   /// The optional output project dir
   #[arg(long="output")]
   output_project_dir_opt: Option<PathBuf>,
-  // #[command(subcommand)]
-  // command: Option<Commands>
+  #[command(subcommand)]
+  pub command: Option<SubCommands>,
 }
 impl InnerCli {
   /// Temp dir 
@@ -179,12 +225,3 @@ pub enum Paths {
   #[error("README.md file")] #[strum(props(path = "README.md"))] ReadmeMdFile,
   #[error("temp dir")] #[strum(props(path = "temp"))] TempDir,
 }
-
-
-// #[derive(Subcommand)]
-// pub enum Commands{
-//   /// Manage OpenAPI generator installation
-//   Tools {
-    
-//   }
-// }

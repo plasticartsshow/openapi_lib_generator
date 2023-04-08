@@ -1,5 +1,8 @@
 //! Codegen utilities
-use std::env;
+use std::{ 
+  env,
+  path::{PathBuf}
+};
 
 
 
@@ -28,3 +31,5 @@ pub fn get_this_crate_name() -> &'static str {
 pub fn get_this_crate_ver() -> &'static str {
   env!("CARGO_PKG_VERSION")
 }
+/// Get the temp directory 
+pub fn get_temp_dir() -> PathBuf { env::temp_dir() }
