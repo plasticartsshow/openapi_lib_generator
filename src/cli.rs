@@ -6,7 +6,7 @@ use clap::{
 }; 
 use crate::{
   generate::{parameters, errors::*, utils, yamls}, 
-  testing::{self, TestingError}
+  testing::{TestingError}
 };
 use once_cell::{sync::Lazy};
 use serde::{Deserialize, Serialize};
@@ -103,12 +103,16 @@ pub enum SubCommands {
   TestGeneration {
     /// This is the path to the crate THIS CLI came from
     #[arg(
-      long, 
+      short = 'p',
+      long = "generator-crate-local-path",  
       required_unless_present("generator_crate_repo_url_opt"),
     )]
     generator_crate_local_path_opt: Option<PathBuf>,
     /// This is the URL to the git repo THIS CLI should come from
-    #[arg(long)]
+    #[arg(
+      short = 'u',
+      long = "generator-crate-repo-url",
+    )]
     generator_crate_repo_url_opt: Option<Url>,
   }
 }
