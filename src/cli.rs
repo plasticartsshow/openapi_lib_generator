@@ -6,7 +6,7 @@ use clap::{
 }; 
 use crate::{
   generate::{parameters, errors::*, utils, yamls}, 
-  testing::{TestingError}
+  testing::{self, TestingError}
 };
 use once_cell::{sync::Lazy};
 use serde::{Deserialize, Serialize};
@@ -61,13 +61,14 @@ impl Cli {
         ..
       }) = command.as_mut() {
         // use the temp directory 
-        let temp_root_path = utils::get_temp_dir();
+        let temp_root_path = utils::get_temp_root_dir();
+        let temp_subdir_path = utils::get_temp_subdir();
         if local_api_spec_filepath_opt.is_none() {
           let yaml_test_spec_path = yamls::create_testing_spec_file(&temp_root_path).await?;
           let _ = local_api_spec_filepath_opt.replace(yaml_test_spec_path);
         }
         if output_project_dir_opt.is_none() {
-          let _ = output_project_dir_opt.replace(temp_root_path);
+          let _ = output_project_dir_opt.replace(temp_subdir_path);
         }
       }
       Ok(Self {

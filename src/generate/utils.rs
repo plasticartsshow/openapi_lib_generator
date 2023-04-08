@@ -1,4 +1,7 @@
 //! Codegen utilities
+use crate::{
+  testing
+};
 use std::{ 
   env,
   path::{PathBuf}
@@ -31,5 +34,9 @@ pub fn get_this_crate_name() -> &'static str {
 pub fn get_this_crate_ver() -> &'static str {
   env!("CARGO_PKG_VERSION")
 }
-/// Get the temp directory 
-pub fn get_temp_dir() -> PathBuf { env::temp_dir() }
+/// Get the temp root directory 
+pub fn get_temp_root_dir() -> PathBuf { env::temp_dir() }
+/// Get temp project subdir 
+pub fn get_temp_subdir() -> PathBuf { 
+  get_temp_root_dir().join(&format!("{}_{}", get_this_crate_name(), testing::TEST_SUBDIR_NAME))
+}

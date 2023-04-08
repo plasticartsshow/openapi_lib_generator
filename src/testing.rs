@@ -6,9 +6,10 @@ use std::{
   io::Error as IOError,
 };
 
-// /// A fake OpenAPI specification
+/// A fake OpenAPI specification
 pub static PETSTORE_YAML : &'static str = include_str!("testing/petstore.yaml"); 
-
+/// A testing folder name 
+pub static TEST_SUBDIR_NAME: &'static str = "testing";
 /// Testing errors 
 #[derive(Debug, Error)]
 pub enum TestingError {

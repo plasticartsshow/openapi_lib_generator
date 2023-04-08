@@ -1,6 +1,6 @@
 //! Set up target crate
 
-use crate::{cli::{Cli, Paths}};
+use crate::{cli::{Cli, Paths, SubCommands}};
 use fs_err::{tokio as fs};
 use futures::{future::{TryFutureExt}};
 use strum::EnumProperty;
@@ -8,7 +8,7 @@ use tokio::{process};
 use thiserror::Error;
 use std::{
   io::{Error as IOError,}, 
-  path::{PathBuf},
+  path::{Path, PathBuf},
   process::{Output},
 };
 
@@ -23,6 +23,15 @@ pub enum CrateScaffoldingError{
   },
 }
 
+/// Create the test generation folder 
+async fn create_testing_folder(
+  cli: &Cli,
+) -> Result<(), CrateScaffoldingError> {
+  let temp_dir_path = &cli.get_output_project_dir();
+  fs::remove_dir_all(&temp_dir_path).await?;
+  fs::create_dir_all(&temp_dir_path).await?;
+  Ok(())
+} 
 /// Create the folder for the crate if it does not exist, make sure the directory is empty
 async fn create_crate_folder_and_check_empty(
   cli: &Cli,
@@ -83,7 +92,11 @@ async fn init_crate(
 
 /// Do all crate scaffolding jobs
 pub async fn scaffold_crate(cli: &Cli) -> Result<(), CrateScaffoldingError> {
-  create_crate_folder_and_check_empty(cli).await?;
+  if let Some(SubCommands::TestGeneration { .. }) = cli.inner_cli.command.as_ref() {
+    create_testing_folder(cli).await?;
+  } else {
+    create_crate_folder_and_check_empty(cli).await?;
+  }
   init_crate(cli).await?;
   setup_tree_in_crate(cli).await?;
   setup_git_in_crate(cli).await?;
