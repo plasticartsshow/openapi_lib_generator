@@ -1,6 +1,5 @@
 //! Makefile tasks
 use cli as cargo_make;
-use quote::quote;
 use crate::{
   cli::{Cli, SubCommands, InnerCli, Paths}, 
   fs,
@@ -10,12 +9,15 @@ use crate::{
 use cargo_make::{types::*};
 use futures::{TryFutureExt};
 use once_cell::{sync::Lazy};
+use proc_macro2::{Span};
+// use quote::quote;
 use serde::{Deserialize, Serialize};
 use std::{
   collections::HashMap, 
   io::{Error as IOError},
 };
 use strum::{EnumProperty};
+use syn::{Ident};
 use thiserror::Error;
 use toml::{ser::Error as TomlSerError};
 use serde_yaml::{Error as SerdeYAMLError};
@@ -46,6 +48,7 @@ impl TryFrom<&Cli> for MakefileSpec {
           NamedTask::make_output_dir_clean_task(),
           NamedTask::make_output_dir_create_task(),
           NamedTask::make_spec_download_task(),
+          NamedTask::make_spec_validate_task(),
         ];
         if cli.inner_cli.api_spec_url_opt.is_some() {
           named_tasks.push(NamedTask::make_spec_download_default_task());
@@ -184,8 +187,8 @@ impl NamedTask {
   ]);
 
   /// Makes a task that does cargo fix  
-  pub fn make_cargo_fix_task() -> NamedTask {
-    NamedTask { 
+  pub fn make_cargo_fix_task() -> Self {
+    Self { 
       name: TaskNames::CargoFixGenerated, 
       task: Task {
         description: Some(r#"Fix ${LIB_NAME} project generated code'."#.to_string()),
@@ -206,8 +209,8 @@ impl NamedTask {
     }
   }
   /// Makes a task that scaffolds the crate 
-  pub fn make_crate_scaffold_task() -> NamedTask {
-    NamedTask { 
+  pub fn make_crate_scaffold_task() -> Self {
+    Self { 
       name: TaskNames::CrateScaffold, 
       task: Task {
         description: Some(r#"Setup ${LIB_NAME} project'."#.to_string()),
@@ -221,13 +224,15 @@ impl NamedTask {
   }
   
   /// Makes a task that does all of the generation steps 
-  pub fn make_generate_all_task(cli: &Cli) -> Result<NamedTask, MakefileGenerationError> {
+  pub fn make_generate_all_task(cli: &Cli) -> Result<Self, MakefileGenerationError> {
+    // dbg!(cli);
     let name = TaskNames::GenerateAll;
     let cargo_configurator = cargos::CargoConfigurator::new(cli)?;
     let cargo_configurator_yaml = serde_yaml::to_string(&cargo_configurator)?;
     let readme_generator = readmes::READMEGenerator::new(cli)?;
     let readme_generator_yaml = serde_yaml::to_string(&readme_generator)?;
     let this_crate_name = cargo_configurator.this_crate_name.to_string();
+    let this_crate_ident = Ident::new(&this_crate_name, Span::call_site());
     let this_crate_ver = cargo_configurator.this_crate_ver.to_string();
     // let cargo_toml_path  = Paths::CargoTomlFile.get_str("path").expect("must get cargo toml path");
     let default_crate_dependency_string = format!("{this_crate_name} = {{ version = \"{this_crate_ver}\" }}");
@@ -260,37 +265,38 @@ impl NamedTask {
     } else {
       default_crate_dependency_string
     };
-    let script_dependencies_doc = format!("//! ```cargo
+    let mut script_lines = trim_lines_vec(&format!(r#"
+      //! ```cargo
       //! [dependencies]
       //! {this_crate_dependency_string}
-      //! serde_yaml = {{ version = \"0.9.19\" }}
-      //! tokio = {{ version = \"1.26.0\", features = [\"full\"] }}
+      //! serde_yaml = {{ version = "0.9.19" }}
+      //! tokio = {{ version = "1.26.0", features = ["full"] }}
       //! ```
-    ");
-    let script_tokens = quote!{
-      use {this_crate_name}::{{ 
+    "#));
+    let mut script_body = trim_lines_vec(&format!{r#"
+      use {this_crate_ident}::{{ 
         cli::CLIError, 
-        generate::{{ 
+        generate::{{
           cargos::CargoConfigurator,
           readmes::READMEGenerator 
         }} 
       }};
-      mod yamls {
-        pub const cargo_configurator_yaml: &'static str = #cargo_configurator_yaml;
-        pub const readme_generator_yaml: &'static str = #readme_generator_yaml;
-      }
-
+      mod yaml_specs {{
+        pub const CARGO_CONFIGURATOR_YAML: &'static str = "{cargo_configurator_yaml}";
+        pub const README_GENERATOR_YAML: &'static str = "{readme_generator_yaml}";
+      }}
       #[tokio::main]
-      async fn main() -> Result<(), CLIError>  {{
-        let cargo_configurator: CargoConfigurator = serde_yaml::from_str(yamls::cargo_configurator_yaml)?;
+      async fn main() -> Result<(), CLIError> {{
+        let cargo_configurator: CargoConfigurator = serde_yaml::from_str(yaml_specs::CARGO_CONFIGURATOR_YAML)?;
         cargo_configurator.update_cargo_toml().await?;
-        let readme_generator: READMEGenerator = serde_yaml::from_str(yamls::readme_generator_yaml)?;
-        
+        let readme_generator: READMEGenerator = serde_yaml::from_str(yaml_specs::README_GENERATOR_YAML)?;
+        readme_generator.update_readme_md_file().await?;
+        println!("updates complete");
         Ok(())
       }}
-    };
-    let script_string = trim_lines(&format!("{script_dependencies_doc}\n{script_tokens}"));
-    Ok(NamedTask { 
+    "#});
+    script_lines.extend(script_body.drain(0..));
+    Ok(Self { 
       name, 
       task: Task{
         description: Some("Generate ${LIB_NAME} code and try to get it up to par".to_string()),
@@ -299,7 +305,7 @@ impl NamedTask {
           "cargo-fix-generated",
         ]),
         script_runner: Some("@rust".to_string()),
-        script: Some(ScriptValue::SingleLine(script_string)),
+        script: Some(ScriptValue::Text(script_lines)),
         // run_task: Some(RunTaskInfo::Routing(vec![
         //   Self::make_named_run_task_routing_info("cargo-fix-generated", None),
         // ])),
@@ -309,14 +315,14 @@ impl NamedTask {
   }
 
   /// Makes a task that generates the code lib from the openapi spec
-  pub fn make_lib_code_generator_task(is_dry_run: Option<bool>) -> NamedTask {
+  pub fn make_lib_code_generator_task(is_dry_run: Option<bool>) -> Self {
     let mut args = Self::CODE_GENERATION_OPTS.clone();
     let mut name = TaskNames::LibCodeGenerate;
     if let Some(true) = is_dry_run {
       args.push("--dry-run".to_string());
       name = TaskNames::LibCodeGenerateDryRun;
     }
-    NamedTask {
+    Self {
       name,
       task: Task{
         description: Some("Generate ${LIB_NAME} code".to_string()),
@@ -357,8 +363,8 @@ impl NamedTask {
   }
 
   /// Makes a task that checks openapi-generator cli artifact
-  pub fn make_openapi_cli_check_task() -> NamedTask {
-    NamedTask{
+  pub fn make_openapi_cli_check_task() -> Self {
+    Self{
       name: TaskNames::OpenapiCliCheck,
       task: Task {
         description: Some("Check that openapi cli generator tool is installed".to_string()),
@@ -370,13 +376,13 @@ impl NamedTask {
   }
 
   /// Makes a task that installs openapi-generator cli artifact
-  pub fn make_openapi_cli_install_task() -> NamedTask {
-    NamedTask {
+  pub fn make_openapi_cli_install_task() -> Self {
+    Self {
       name: TaskNames::OpenapiCliBashInstall,
       task: Task {
         description: Some(r#"Install Open API generator CLI'."#.to_string()),
-        script: Some(ScriptValue::SingleLine(
-          r#"#!/bin/bash
+        script: Some(ScriptValue::Text(trim_lines_vec(r#"
+          #!/bin/bash
           # enable the downloaded cli artifact file 
           CLI_SUBDIR=$HOME/${OPEN_API_GENERATOR_CLI_SUBDIR}
           CLI_PATH=$HOME/${OPEN_API_GENERATOR_CLI_PATH}
@@ -446,16 +452,16 @@ impl NamedTask {
   
           get_cli
           deal_with_cli
-          "#.to_string()
-        )),
+          "#
+        ))),
         ..Default::default()
       }
     }
   }
   
   /// Makes a task that cleans a library directory
-  pub fn make_output_dir_clean_task() -> NamedTask {
-    NamedTask {
+  pub fn make_output_dir_clean_task() -> Self {
+    Self {
       name: TaskNames::OutputDirClean,
       task: Task {
         description: Some(r#"Setup ${LIB_NAME} output dir at ${OUTPUT_DIR}'."#.to_string()),
@@ -467,8 +473,8 @@ impl NamedTask {
   }
   
   /// Makes a task that sets up a library directory
-  pub fn make_output_dir_create_task() -> NamedTask {
-    NamedTask {
+  pub fn make_output_dir_create_task() -> Self {
+    Self {
       name: TaskNames::OutputDirCreate,
       task: Task {
         description: Some(r#"Create ${LIB_NAME} output dir at ${OUTPUT_DIR}'."#.to_string()),
@@ -480,8 +486,8 @@ impl NamedTask {
   }
   
   /// Makes a task that downloads default spec if known
-  pub fn make_spec_download_default_task() -> NamedTask {
-    NamedTask { 
+  pub fn make_spec_download_default_task() -> Self {
+    Self { 
       name: TaskNames::SpecDownloadDefault, 
       task: Task {
         description: Some(r#"Downloads ${API_NAME} Open API specification from '${API_URL}'."#.to_string()),
@@ -492,8 +498,8 @@ impl NamedTask {
     }
   }
   /// Makes a task that downloads spec if known
-  pub fn make_spec_download_task() -> NamedTask {
-    NamedTask { 
+  pub fn make_spec_download_task() -> Self {
+    Self { 
       name: TaskNames::SpecDownload, 
       task: Task {
         description: Some(r#"Downloads ${API_NAME} Open API specification from specified vararg'."#.to_string()),
@@ -503,11 +509,27 @@ impl NamedTask {
       }
     }
   }
+  /// Makes a task that validates the spec
+  pub fn make_spec_validate_task() -> Self {
+    let name = TaskNames::SpecValidate;
+    let description = Some(format!("{name}"));
+    Self {
+      name,
+      task: Task {
+        description,
+        command: Some("${OPEN_API_GENERATOR_CLI_SCRIPT}".to_string()),
+        args: Some(vv![strings "validate", "--input-spec", "${SPEC_FILE_PATH}", "--recommend",]),
+        ..Default::default()
+      }
+    }
+  }
+
 }
 
 /// Names of tasks 
 #[derive(Clone, Copy, Debug, Deserialize, Error, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, strum::AsRefStr,)]
 #[strum(serialize_all = "kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub enum TaskNames {
   #[error("A task that does cargo fix")] CargoFixGenerated,
   #[error("A task that scaffolds the crate")] CrateScaffold,
@@ -520,4 +542,5 @@ pub enum TaskNames {
   #[error("A task that sets up a library directory")] OutputDirCreate,
   #[error("A task that downloads default spec if known")] SpecDownloadDefault,
   #[error("A task that downloads spec if known")] SpecDownload,
+  #[error("A task that validates the spec")] SpecValidate,
 }

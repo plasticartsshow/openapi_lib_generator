@@ -8,6 +8,8 @@ use std::{
 
 /// A fake OpenAPI specification
 pub static PETSTORE_YAML : &'static str = include_str!("testing/petstore.yaml"); 
+/// A name for a testing OpenAPI yaml spec file
+pub static TESTING_SPEC_FILE_NAME : &'static str = "petshoppe_test_spec.yaml";
 /// A testing folder name 
 pub static TEST_SUBDIR_NAME: &'static str = "testing";
 /// Testing errors 

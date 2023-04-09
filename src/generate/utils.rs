@@ -17,13 +17,31 @@ macro_rules! vv {
 } 
 
 
-/// trim whitespace from multiline code resulting in a single string
-pub fn trim_lines(s: &str) -> String {
-  s.lines().map(|line| format!("{}\n", line.trim())).collect()
-}
-/// trim whitespace from multiline code resulting in a vec of strings
+/// trim leading whitespace from multiline code resulting in a single string
+pub fn trim_lines(s: &str) -> String { trim_lines_vec(s).join("/n") }
+/// trim leading whitespace from multiline code resulting in a vec of strings
 pub fn trim_lines_vec(s: &str) -> Vec<String> {
-  s.lines().map(|line| format!("{}\n", line.trim())).collect()
+  s.lines()
+    .map(|line| line.trim_end())
+    .filter(|line| !line.is_empty())
+    .fold(
+      ( 
+        String::new(),
+        Vec::new()
+      ),
+      | 
+        (mut target, mut result), line
+      | {
+        if target.is_empty() && !line.is_empty() {
+          let leading_whitespace = line.len() - line.trim_start_matches(" ").len();
+          target = " ".repeat(leading_whitespace);
+        }
+        if !target.is_empty() {
+          result.push(format!("{}", line.strip_prefix(&target).unwrap_or(line)));
+        }
+        (target, result)
+      }
+    ).1
 }
 
 /// Get the name of this crate 
@@ -39,4 +57,20 @@ pub fn get_temp_root_dir() -> PathBuf { env::temp_dir() }
 /// Get temp project subdir 
 pub fn get_temp_subdir() -> PathBuf { 
   get_temp_root_dir().join(&format!("{}_{}", get_this_crate_name(), testing::TEST_SUBDIR_NAME))
+}
+
+#[cfg(test)]
+mod test_mod_name {
+  use super::*;
+  #[test]
+  fn trim_lines_works() {
+    let test = r#"
+        line zero
+          line one
+    "#;
+    assert_eq!(
+      trim_lines_vec(test),
+      vec!["line zero", "  line one"]
+    )
+  }
 }

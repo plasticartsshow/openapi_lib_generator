@@ -17,7 +17,6 @@ use serde_yaml::{Error as SerdeYAMLError};
 use thiserror::Error;
 use std::{
   io::{Error as IOError,}, 
-  path::{Path, PathBuf},
 };
 /// Errors that can happen with yaml generation
 #[derive(Debug, Error)]
@@ -121,14 +120,16 @@ impl OpenAPIRustGeneratorConfigs {
 /// Create a testing spec file in given directory
 ///
 /// Returns the name of the spec created
-pub async fn create_testing_spec_file<P: AsRef<Path>>(temp_root_path: P) -> Result<PathBuf, YAMLGenerationError> {
+pub async fn create_testing_spec_file(cli: &Cli) -> Result<(), YAMLGenerationError> {
   let petstore_yaml: &'static str = testing::PETSTORE_YAML;
-  let output_file_name = MakefileEnv::OPEN_API_GENERATOR_CONFIG_FILE;
-  let output_file_path = temp_root_path.as_ref().join(output_file_name); 
+  let output_file_path = cli.inner_cli.local_api_spec_filepath_opt.clone()
+    .ok_or_else(|| YAMLGenerationError::ParameterError(
+      ParameterError::TestingYAMLSpecPathMissing
+    ))?;
   write(
     &output_file_path,
     petstore_yaml,
-    Some("Petstore OpenAPI testing YAML"),
+    Some("Created source OpenAPI testing YAML"),
   ).await?;
-  Ok(output_file_path)
+  Ok(())
 }

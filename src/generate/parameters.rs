@@ -10,6 +10,7 @@ pub enum ParameterError {
   #[error("API path has no segments {0}")] APIPathNeedsSegments(Url),    
   #[error("API path segments has no last")] APIPathSegmentsNeedsLast,    
   #[error("Must provide API spec url if no local file given")] APIUrlNeededIfNoLocalFile,    
+  #[error("Must provide a path to create the testing yaml spec")] TestingYAMLSpecPathMissing,
 }
 
 /// Get file name from path

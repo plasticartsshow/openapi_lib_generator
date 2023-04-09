@@ -5,14 +5,15 @@ use clap::{
   Subcommand,
 }; 
 use crate::{
-  generate::{parameters, errors::*, utils, yamls}, 
-  testing::{TestingError}
+  generate::{parameters, errors::*, utils}, 
+  testing
 };
 use once_cell::{sync::Lazy};
 use serde::{Deserialize, Serialize};
 use serde_yaml::{Error as SerdeYAMLError};
 use std::{
   env,
+  io::{Error as IOError},
   ops::{Deref},
   path::{PathBuf},
 };
@@ -29,7 +30,7 @@ mod defaults {
 use defaults::*;
  
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Cli{
   pub inner_cli: InnerCli,
   pub generation_timestamp: DateTime<Utc>,
@@ -58,10 +59,11 @@ impl Cli {
       ..
     }) = command.as_mut() {
       // use the temp directory 
-      let temp_root_path = utils::get_temp_root_dir();
+      // let temp_root_path = utils::get_temp_root_dir();
       let temp_subdir_path = utils::get_temp_subdir();
       if local_api_spec_filepath_opt.is_none() {
-        let yaml_test_spec_path = yamls::create_testing_spec_file(&temp_root_path).await?;
+        let yaml_spec_file_name = testing::TESTING_SPEC_FILE_NAME;
+        let yaml_test_spec_path = temp_subdir_path.join(yaml_spec_file_name); 
         let _ = local_api_spec_filepath_opt.replace(yaml_test_spec_path);
       }
       if output_project_dir_opt.is_none() {
@@ -81,6 +83,7 @@ impl Cli {
 /// CLI Errors
 #[derive(Error, Debug, )]
 pub enum CLIError {
+  #[error(transparent)] IOError(#[from]IOError),
   #[error(transparent)]CargoConfigError(#[from] CargoConfigError),
   #[error(transparent)]CrateScaffoldingError(#[from] CrateScaffoldingError),
   #[error(transparent)]MakefileGenerationError(#[from] MakefileGenerationError),
@@ -88,12 +91,12 @@ pub enum CLIError {
   #[error(transparent)]READMEGenerationError(#[from] READMEGenerationError),
   #[error(transparent)]SerdeYAMLError(#[from] SerdeYAMLError),
   #[error(transparent)]YAMLGenerationError(#[from] YAMLGenerationError),
-  #[error(transparent)]TestingError(#[from] TestingError),
+  #[error(transparent)]TestingError(#[from] testing::TestingError),
 }
 
 
 /// Subcommands for the [InnerCli]
-#[derive(Clone, Deserialize, Serialize, Subcommand)]
+#[derive(Clone, Debug, Deserialize, Serialize, Subcommand)]
 pub enum SubCommands {
   /// Tests code generation 
   /// 
@@ -125,7 +128,7 @@ pub enum SubCommands {
 /// Generate a client crate for the given OpenAPI—compliant web application.  
 /// The specifications must be provided either as a url or a local file.   
 /// ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-#[derive(Clone, Deserialize, Parser, Serialize)]
+#[derive(Clone, Debug, Deserialize, Parser, Serialize)]
 #[command(author, version, about, verbatim_doc_comment )]
 pub struct InnerCli {
   /// The site or app name. Will be used to determine generated crate name

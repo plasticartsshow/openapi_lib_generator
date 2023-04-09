@@ -10,33 +10,39 @@ use openapi_lib_generator::{
   testing::{TestingError}
 };
 
-/// Run a subcommand in some generated code crate
-async fn run_subcommand(subcommand: &SubCommands) -> Result<(), CLIError> {
+/// Run a subcommand 
+async fn run_subcommands(cli: &Cli) -> Result<(), CLIError> {
   use tokio::{process::Command};
-  match subcommand {
-    SubCommands::TestGeneration { 
-      // generator_crate_local_path_opt, 
-      // generator_crate_repo_url_opt,
-      ..
-    } => {
-      let task_name_str: &'static str = TaskNames::GenerateAll.as_ref();
-      let output = Command::new("cargo")
-        .args(&["make", task_name_str])
-        .output().await
-        .map_err(TestingError::from)
-        .map_err(CLIError::from)?;
-      if !output.status.success() {
-        Err(CLIError::from(
-          TestingError::TestProcessFailure(
-            String::from_utf8_lossy(&output.stderr).to_string()
-          )
-        ))
-      } else {
-        
-        Ok(())
+  if let Some(subcommand) = cli.command.as_ref() {
+    let output_project_dir = cli.get_output_project_dir();
+    match subcommand {
+      SubCommands::TestGeneration { 
+        // generator_crate_local_path_opt, 
+        // generator_crate_repo_url_opt,
+        ..
+      } => {
+        let task_name_str: &'static str = TaskNames::GenerateAll.as_ref();
+        let child = Command::new("cargo")
+          .args(&["make", task_name_str])
+          .current_dir(&output_project_dir)
+          .spawn()?;
+        let output = child
+          .wait_with_output().await
+          .map_err(TestingError::from)
+          .map_err(CLIError::from)?;
+        if !output.status.success() {
+          Err(CLIError::from(
+            TestingError::TestProcessFailure( format!("{output:#?}"))
+          ))
+        } else {
+          
+          Ok(())
+        }
+  
       }
-
     }
+  } else {
+    Ok(())
   }
 }
 
@@ -49,8 +55,7 @@ async fn main() -> Result<(), CLIError> {
   let rust_generator_configs = OpenAPIRustGeneratorConfigs::new(cli);
   rust_generator_configs.copy_spec_file(cli).await?;
   rust_generator_configs.write_to_yaml_file(cli).await?;
-  if let Some(subcommand) = &cli.command {
-    run_subcommand(subcommand).await?;
-  } 
+  run_subcommands(cli).await?;
+  
   Ok(())
 }
