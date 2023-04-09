@@ -5,44 +5,59 @@ use openapi_lib_generator::{
   generate::{
     crate_scaffolds,
     makefiles::{MakefileSpec, TaskNames},
-    yamls::{OpenAPIRustGeneratorConfigs},
+    yamls::{OpenAPIRustGeneratorConfigs}, CrateScaffoldingError,
+    utils::{ProcessError, run_cargo_make_task}
   },
   testing::{TestingError}
 };
 
 /// Run a subcommand 
 async fn run_subcommands(cli: &Cli) -> Result<(), CLIError> {
-  use tokio::{process::Command};
-  if let Some(subcommand) = cli.command.as_ref() {
-    let output_project_dir = cli.get_output_project_dir();
-    match subcommand {
-      SubCommands::TestGeneration { 
-        // generator_crate_local_path_opt, 
-        // generator_crate_repo_url_opt,
-        ..
-      } => {
-        let task_name_str: &'static str = TaskNames::GenerateAll.as_ref();
-        let child = Command::new("cargo")
-          .args(&["make", task_name_str])
-          .current_dir(&output_project_dir)
-          .spawn()?;
-        let output = child
-          .wait_with_output().await
-          .map_err(TestingError::from)
-          .map_err(CLIError::from)?;
+  let Cli {
+    inner_cli: InnerCli { 
+      api_spec_url_opt, 
+      autogenerate,
+      .. 
+    },
+    ..
+  } = cli;
+  match cli.command.as_ref() {
+    Some(SubCommands::TestGeneration { .. }) => {
+      let task_name = TaskNames::GenerateAll;
+      let output = run_cargo_make_task(cli, task_name).await
+        .map_err(TestingError::from)
+        .map_err(CLIError::from)?;
+      if !output.status.success() {
+        Err(CLIError::from(
+          TestingError::ProcessError( ProcessError::Failure(format!("{output:#?}")))
+        ))
+      } else {
+        Ok(())
+      }
+    },
+    None => {
+      if *autogenerate && api_spec_url_opt.is_some() {
+        let task_name = TaskNames::SpecDownloadDefault;
+        let output = run_cargo_make_task(cli, task_name).await
+        .map_err(CrateScaffoldingError::from)
+        .map_err(CLIError::from)?;
         if !output.status.success() {
-          Err(CLIError::from(
-            TestingError::TestProcessFailure( format!("{output:#?}"))
-          ))
+          Err(CLIError::from(ProcessError::Failure(format!("{output:#?}"))))
         } else {
-          
-          Ok(())
+          let task_name = TaskNames::GenerateAll;
+          let output = run_cargo_make_task(cli, task_name).await
+          .map_err(CrateScaffoldingError::from)
+          .map_err(CLIError::from)?;
+          if !output.status.success() {
+            Err(CLIError::from(ProcessError::Failure(format!("{output:#?}"))))
+          } else {
+            Ok(())
+          }
         }
-  
+      } else {
+        Ok(())
       }
     }
-  } else {
-    Ok(())
   }
 }
 

@@ -1,6 +1,6 @@
 //! README file generation
 
-use crate::{cli::{Cli, InnerCli, Paths}, generate::*}; 
+use crate::{cli::{Cli, InnerCli, Paths}, generate::{utils::*}}; 
 use strum::EnumProperty;
 use thiserror::Error;
 use fs_err::{tokio as fs};

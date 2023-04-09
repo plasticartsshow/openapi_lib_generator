@@ -1,13 +1,58 @@
 //! Codegen utilities
 use crate::{
-  testing
+  testing,
+  cli::{Cli},
 };
 use std::{ 
   env,
-  path::{PathBuf}
+  path::{Path, PathBuf},
+  io::{Error as IOError},
+  process::{Output}
 };
+use thiserror::Error;
+use tokio::{process::{Child, Command}};
+
+/// Testing errors 
+#[derive(Debug, Error)]
+pub enum ProcessError {
+  #[error(transparent)] IOError(#[from] IOError),
+  #[error("Process failed \n {0}")] Failure(String),
+}
+
+/// Attempt to run a cargo job
+pub async fn run_cargo_job<T: AsRef<str>, P: AsRef<Path>>(
+  args: &[T], 
+  cwd_opt: Option<P>,
+  description_opt: Option<T>,
+) -> Result<Output, ProcessError> {
+  let mut command = Command::new("cargo");
+  let cwd_string = if let Some(cwd) = cwd_opt.as_ref() {
+    command.current_dir(&cwd.as_ref());
+    format!("in {}", cwd.as_ref().to_string_lossy())
+  } else { String::default() };
+  let args_vec = &Vec::from_iter(args.iter().map(AsRef::as_ref));
+  let arg_string = args_vec.iter().map(|a| format!("\"{a}\" ")).collect::<String>();
+  let description = description_opt.map(|s| s.as_ref().to_string())
+    .unwrap_or_else(|| format!("Running `cargo` {arg_string} {cwd_string}.", ));
+  println!("{description}");
+  let child: Child = command
+    .args(args_vec)
+    .spawn()?;
+  child
+    .wait_with_output().await
+    .map_err(ProcessError::from)
+}
 
 
+/// Attempt to run a cargo make task
+pub async fn run_cargo_make_task<T: AsRef<str>>(cli: &Cli, task_name: T) -> Result<Output, ProcessError> {
+  let output_project_dir = &cli.get_output_project_dir();
+  run_cargo_job(
+    &["make", task_name.as_ref()], 
+    Some(output_project_dir),
+    None,
+  ).await
+}
 
 #[macro_export]
 /// Just makes a vec of specified items from arguments

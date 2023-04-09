@@ -83,11 +83,12 @@ impl Cli {
 /// CLI Errors
 #[derive(Error, Debug, )]
 pub enum CLIError {
-  #[error(transparent)] IOError(#[from]IOError),
+  #[error(transparent)]IOError(#[from]IOError),
   #[error(transparent)]CargoConfigError(#[from] CargoConfigError),
   #[error(transparent)]CrateScaffoldingError(#[from] CrateScaffoldingError),
   #[error(transparent)]MakefileGenerationError(#[from] MakefileGenerationError),
   #[error(transparent)]ParameterError(#[from] ParameterError),
+  #[error(transparent)]ProcessError(#[from] utils::ProcessError),
   #[error(transparent)]READMEGenerationError(#[from] READMEGenerationError),
   #[error(transparent)]SerdeYAMLError(#[from] SerdeYAMLError),
   #[error(transparent)]YAMLGenerationError(#[from] YAMLGenerationError),
@@ -127,6 +128,19 @@ pub enum SubCommands {
 ///  \_______/\______/  \_____________________________/  \______/\________/ 
 /// Generate a client crate for the given OpenAPI—compliant web application.  
 /// The specifications must be provided either as a url or a local file.   
+/// 
+/// To prevent the new crate from generating the code, disable the `autogenerate` option.
+/// 
+/// To generate code manually,  enter the new crate after generation and:
+/// 1. Provide an OpenAPI-compliant spec file (yaml or json):
+///   - (If you specified a `spec-url`): Run `cargo make spec-download-default`
+///   - (If you want to specify a different url):  Run`cargo make spec-download [YOUR_URL]` 
+/// 2. Run`cargo make generate-all`
+/// 
+/// The generated crate includes a `cargo-make` makefile with tasks for maintaining the crate
+/// Cargo-make default tasks are also supported. 
+/// 
+/// This CLI will check for the presence of cargo make and try to install it if needed. 
 /// ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 #[derive(Clone, Debug, Deserialize, Parser, Serialize)]
 #[command(author, version, about, verbatim_doc_comment )]
@@ -137,6 +151,9 @@ pub struct InnerCli {
   /// The app URL. It's just there for documentation and referencing.
   #[arg(long="api-url")]
   pub api_url: Url,
+  /// Autogenerate after scaffolding the crate. (enabled by default)
+  #[arg(long="autogenerate", default_value_t=true)]
+  pub autogenerate: bool,
   /// The api spec URL. If provided, the generator will fetch the json or yaml OpenAPI specification from here.
   #[arg(long="spec-url")]
   pub api_spec_url_opt: Option<Url>, 
@@ -165,7 +182,7 @@ impl InnerCli {
   /// Get a default project library name 
   fn get_default_lib_name(&self) -> String {
     let Self {site_or_api_name, ..} = self;
-    format!("{site_or_api_name}_api_lib")
+    format!("{site_or_api_name}_openapi_client")
   }
   /// Get a default project spec file name 
   fn get_default_spec_file_name(&self) -> String {

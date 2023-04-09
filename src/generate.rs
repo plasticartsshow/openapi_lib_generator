@@ -7,7 +7,7 @@ pub mod readmes;
 
 
 pub mod utils;
-pub use utils::*;
+// pub use utils::*;
 pub mod yamls;
 
 
@@ -19,5 +19,6 @@ pub mod errors {
   pub use makefiles::MakefileGenerationError;
   pub use readmes::READMEGenerationError;
   pub use yamls::YAMLGenerationError;
+  pub use utils::ProcessError;
 }
 pub use errors::*;

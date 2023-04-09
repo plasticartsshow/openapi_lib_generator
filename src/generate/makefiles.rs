@@ -3,7 +3,7 @@ use cli as cargo_make;
 use crate::{
   cli::{Cli, SubCommands, InnerCli, Paths}, 
   fs,
-  generate::*,
+  generate::{*, errors::*, utils::*},
   vv,
 };
 use cargo_make::{types::*};

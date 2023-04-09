@@ -1,6 +1,14 @@
 //! Set up target crate
 
-use crate::{cli::{Cli, Paths, SubCommands}, generate::{yamls}};
+use crate::{
+  cli::{Cli, Paths, SubCommands}, 
+  generate::{
+    makefiles::{TaskNames}, 
+    utils::{ProcessError, run_cargo_job},
+    yamls,
+  },
+  
+};
 use fs_err::{tokio as fs};
 use futures::{future::{TryFutureExt}};
 use strum::EnumProperty;
@@ -9,18 +17,23 @@ use thiserror::Error;
 use std::{
   io::{Error as IOError,}, 
   path::{PathBuf},
-  process::{Output},
 };
+
 
 /// Crate scaffolding errors 
 #[derive(Debug, Error)]
 pub enum CrateScaffoldingError{ 
   #[error(transparent)] IOError(#[from] IOError),
+  #[error(transparent)] ProcessError(#[from] ProcessError),
   #[error(transparent)] YAMLGenerationError(#[from] yamls::YAMLGenerationError),
   #[error("Cannot scaffold in a directory that can't be confirmed as empty {0}: It's hella dangerous")] NonEmptyTargetDir(PathBuf),
   #[error("Could not find crate dir at {0}")] MissingCrateDir(PathBuf),
+  #[error(transparent)] CargoMakeTaskFailed( #[from]TaskNames),
   #[error("Cargo init project at `{crate_dir}` failed with `{error_string}`  ")] CargoInitFailed{
     crate_dir: PathBuf, error_string: String
+  },
+  #[error("Installing `cargo-make` failed with `{error_string}`  ")] CargoMakeInstallFailed{
+    error_string: String
   },
 }
 
@@ -70,21 +83,16 @@ async fn init_crate(
           .output()
           .await
           .map_err(CrateScaffoldingError::from)
-          .and_then(|Output { 
-            status, 
-            stderr,
-            stdout
-          }| {
-            if status.success() {
-              let success_string = String::from_utf8(stdout)
+          .and_then(|output| {
+            if output.status.success() {
+              let success_string = String::from_utf8(output.stdout)
                 .unwrap_or_default();
               println!("Initialized crate at `{dir_path_string}` with output  {success_string}");
               Ok(())
             } else {
               let e = CrateScaffoldingError::CargoInitFailed { 
                 crate_dir: dir_path.clone(), 
-                error_string: String::from_utf8(stderr)
-                  .unwrap_or_else(|_| "Error missing".to_string())
+                error_string: format!("{output:#?}")
               };
               eprintln!("{e:?}");
               Err(e)
@@ -92,6 +100,28 @@ async fn init_crate(
           })
       }
     }).await
+}
+
+/// Attempt to install cargo make 
+pub async fn install_cargo_make() -> Result<(), CrateScaffoldingError> {
+  run_cargo_job(
+    &["install", "--force", "cargo-make"], 
+    Option::<&str>::None,
+    None
+  ).await
+    .map_err(CrateScaffoldingError::from)
+    .and_then(|output| {
+      if output.status.success() {
+        println!("Installed cargo make");
+        Ok(())
+      } else {
+        let e = CrateScaffoldingError::CargoMakeInstallFailed { 
+          error_string: format!("{output:#?}")
+        };
+        eprintln!("{e:?}");
+        Err(e)
+      }
+    })
 }
 
 /// Do all crate scaffolding jobs
