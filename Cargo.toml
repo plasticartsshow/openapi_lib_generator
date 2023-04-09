@@ -2,12 +2,12 @@
 name = "openapi_lib_generator"
 version = "0.2.0"
 edition = "2021"
-authors = ["Anwar Hahj Jefferson-George <anwarhahjjeffersongeorge@gmail.com>"]
+authors = ["Plastic Arts Show <plasticartsshow@gmail.com>"]
 license = "MIT OR Apache-2.0"
 keywords = ["OpenAPI", "generator", "library"]
 categories = ["command-line-utilities", "development-tools", "web-programming"]
 description = "Rust openapi lib generator"
-repository = "https://github.com/anwarhahjjeffersongeorge/openapi-lib-generator"
+repository = "https://github.com/plasticartsshow/openapi-lib-generator"
 documentation = "https://docs.rs/openapi-lib-generator"
 readme = "README.md"
 
