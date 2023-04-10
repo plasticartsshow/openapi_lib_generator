@@ -53,13 +53,8 @@ impl Cli {
       local_api_spec_filepath_opt, 
       ..
     } = &mut inner_cli;
-    if let Some(SubCommands::TestGeneration { 
-      // generator_crate_local_path_opt, 
-      // generator_crate_repo_url_opt ,
-      ..
-    }) = command.as_mut() {
+    if let Some(SubCommands::TestGeneration {..}) = command.as_mut() {
       // use the temp directory 
-      // let temp_root_path = utils::get_temp_root_dir();
       let temp_subdir_path = utils::get_temp_subdir();
       if local_api_spec_filepath_opt.is_none() {
         let yaml_spec_file_name = testing::TESTING_SPEC_FILE_NAME;
@@ -69,8 +64,9 @@ impl Cli {
       if output_project_dir_opt.is_none() {
         let _ = output_project_dir_opt.replace(temp_subdir_path);
       }
-    } else if inner_cli.local_api_spec_filepath_opt.is_none() 
-      && inner_cli.api_spec_url_opt.is_none() {
+    } else if inner_cli.local_api_spec_filepath_opt.is_none()
+      && inner_cli.api_spec_url_opt.is_none()
+    {
       return Err(ParameterError::APIUrlNeededIfNoLocalFile.into());
     }
     Ok(Self {
