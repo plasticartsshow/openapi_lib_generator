@@ -5,51 +5,59 @@ use openapi_lib_generator::{
   generate::{
     crate_scaffolds,
     makefiles::{MakefileSpec, TaskNames},
-    yamls::{OpenAPIRustGeneratorConfigs}, CrateScaffoldingError,
-    utils::{ProcessError, run_cargo_make_task}
+    utils::{run_cargo_make_task, ProcessError},
+    yamls::OpenAPIRustGeneratorConfigs,
+    CrateScaffoldingError,
   },
-  testing::{TestingError}
+  testing::TestingError,
 };
 
-/// Run a subcommand 
+/// Run a subcommand
 async fn run_subcommands(cli: &Cli) -> Result<(), CLIError> {
   let Cli {
-    inner_cli: InnerCli { 
-      api_spec_url_opt, 
+    inner_cli: InnerCli {
+      api_spec_url_opt,
       autogenerate,
-      .. 
+      ..
     },
     ..
   } = cli;
   match cli.command.as_ref() {
     Some(SubCommands::TestGeneration { .. }) => {
       let task_name = TaskNames::GenerateAll;
-      let output = run_cargo_make_task(cli, task_name).await
+      let output = run_cargo_make_task(cli, task_name)
+        .await
         .map_err(TestingError::from)
         .map_err(CLIError::from)?;
       if !output.status.success() {
-        Err(CLIError::from(
-          TestingError::ProcessError( ProcessError::Failure(format!("{output:#?}")))
-        ))
+        Err(CLIError::from(TestingError::ProcessError(
+          ProcessError::Failure(format!("{output:#?}")),
+        )))
       } else {
         Ok(())
       }
-    },
+    }
     None => {
       if *autogenerate && api_spec_url_opt.is_some() {
         let task_name = TaskNames::SpecDownloadDefault;
-        let output = run_cargo_make_task(cli, task_name).await
-        .map_err(CrateScaffoldingError::from)
-        .map_err(CLIError::from)?;
-        if !output.status.success() {
-          Err(CLIError::from(ProcessError::Failure(format!("{output:#?}"))))
-        } else {
-          let task_name = TaskNames::GenerateAll;
-          let output = run_cargo_make_task(cli, task_name).await
+        let output = run_cargo_make_task(cli, task_name)
+          .await
           .map_err(CrateScaffoldingError::from)
           .map_err(CLIError::from)?;
+        if !output.status.success() {
+          Err(CLIError::from(ProcessError::Failure(format!(
+            "{output:#?}"
+          ))))
+        } else {
+          let task_name = TaskNames::GenerateAll;
+          let output = run_cargo_make_task(cli, task_name)
+            .await
+            .map_err(CrateScaffoldingError::from)
+            .map_err(CLIError::from)?;
           if !output.status.success() {
-            Err(CLIError::from(ProcessError::Failure(format!("{output:#?}"))))
+            Err(CLIError::from(ProcessError::Failure(format!(
+              "{output:#?}"
+            ))))
           } else {
             Ok(())
           }
@@ -71,6 +79,6 @@ async fn main() -> Result<(), CLIError> {
   rust_generator_configs.copy_spec_file(cli).await?;
   rust_generator_configs.write_to_yaml_file(cli).await?;
   run_subcommands(cli).await?;
-  
+
   Ok(())
 }

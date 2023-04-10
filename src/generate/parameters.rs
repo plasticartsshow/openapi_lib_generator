@@ -1,16 +1,20 @@
 //! Generator errors
 // use std::{path::{Path}};
 
-use thiserror::Error; 
+use thiserror::Error;
 use url::Url;
 
 /// Parameter errors
-#[derive(Error, Debug, )]
+#[derive(Error, Debug)]
 pub enum ParameterError {
-  #[error("API path has no segments {0}")] APIPathNeedsSegments(Url),    
-  #[error("API path segments has no last")] APIPathSegmentsNeedsLast,    
-  #[error("Must provide API spec url if no local file given")] APIUrlNeededIfNoLocalFile,    
-  #[error("Must provide a path to create the testing yaml spec")] TestingYAMLSpecPathMissing,
+  #[error("API path has no segments {0}")]
+  APIPathNeedsSegments(Url),
+  #[error("API path segments has no last")]
+  APIPathSegmentsNeedsLast,
+  #[error("Must provide API spec url if no local file given")]
+  APIUrlNeededIfNoLocalFile,
+  #[error("Must provide a path to create the testing yaml spec")]
+  TestingYAMLSpecPathMissing,
 }
 
 /// Get file name from path
@@ -19,7 +23,8 @@ pub fn try_file_name_from_path_url(path_url: &Url) -> Result<String, ParameterEr
     .path_segments()
     .ok_or_else(|| ParameterError::APIPathNeedsSegments(path_url.clone()))
     .and_then(|path_segments| {
-      path_segments.last()
+      path_segments
+        .last()
         .ok_or_else(|| ParameterError::APIPathSegmentsNeedsLast)
         .map(ToString::to_string)
     })
