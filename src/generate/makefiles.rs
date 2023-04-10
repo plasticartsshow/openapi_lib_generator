@@ -167,6 +167,10 @@ impl MakefileEnv {
   pub const OPEN_API_GENERATOR_CLI_SCRIPT: &'static str = "openapi-generator-cli";
   /// Default Makefile name
   pub const MAKEFILE_NAME: &'static str = "Makefile.toml";
+  /// Default Makefile task category
+  pub const DEFAULT_TASK_CATEGORY: Lazy<String> = Lazy::new(|| {
+    format!("{} {}", get_this_crate_name(), get_this_crate_ver_pretty())
+  });
 }
 
 /// A named [Task] specification
@@ -186,11 +190,15 @@ impl NamedTask {
     // "-Dcolor",
   ]);
 
+  /// Get default category
+  pub fn default_category() -> Option<String> { Some(MakefileEnv::DEFAULT_TASK_CATEGORY.to_string()) }
+
   /// Makes a task that does cargo fix  
   pub fn make_cargo_fix_task() -> Self {
     Self { 
       name: TaskNames::CargoFixGenerated, 
       task: Task {
+        category: Self::default_category(),
         description: Some(r#"Fix ${LIB_NAME} project generated code'."#.to_string()),
         command: Some("cargo".to_string()),
         args: Some(vv![strings 
@@ -213,10 +221,11 @@ impl NamedTask {
     Self { 
       name: TaskNames::CrateScaffold, 
       task: Task {
+        category: Self::default_category(),
         description: Some(r#"Setup ${LIB_NAME} project'."#.to_string()),
-        dependencies: Some(vv![ dep_names
-          "output-dir-create",
-          "output-dir-clean",
+        dependencies: Some(vv![ as_ref dep_names
+          TaskNames::OutputDirCreate,
+          TaskNames::OutputDirClean,
         ]),
         ..Default::default()
       } 
@@ -288,7 +297,8 @@ impl NamedTask {
       #[tokio::main]
       async fn main() -> Result<(), CLIError> {{
         let cargo_configurator: CargoConfigurator = serde_yaml::from_str(yaml_specs::CARGO_CONFIGURATOR_YAML)?;
-        cargo_configurator.update_cargo_toml().await?;
+        cargo_configurator.update_cargo_manifest_post_generation().await?;
+        cargo_configurator.update_cargo_manifest_post_fix_edition().await?;
         let readme_generator: READMEGenerator = serde_yaml::from_str(yaml_specs::README_GENERATOR_YAML)?;
         readme_generator.update_readme_md_file().await?;
         println!("updates complete");
@@ -299,10 +309,11 @@ impl NamedTask {
     Ok(Self { 
       name, 
       task: Task{
+        category: Self::default_category(),
         description: Some("Generate ${LIB_NAME} code and try to get it up to par".to_string()),
-        dependencies: Some(vv![dep_names 
-          "lib-code-generate",
-          "cargo-fix-generated",
+        dependencies: Some(vv![as_ref dep_names 
+          TaskNames::LibCodeGenerate,
+          TaskNames::CargoFixGenerated,
         ]),
         script_runner: Some("@rust".to_string()),
         script: Some(ScriptValue::Text(script_lines)),
@@ -325,8 +336,8 @@ impl NamedTask {
     Self {
       name,
       task: Task{
+        category: Self::default_category(),
         description: Some("Generate ${LIB_NAME} code".to_string()),
-        // dependencies: Some(vv![dep_names "spec-download",]),
         condition_script: Some(trim_lines_vec(r#"
           #!/bin/bash
           # check if openapi cli command exists
@@ -367,6 +378,7 @@ impl NamedTask {
     Self{
       name: TaskNames::OpenapiCliCheck,
       task: Task {
+        category: Self::default_category(),
         description: Some("Check that openapi cli generator tool is installed".to_string()),
         command: Some("command".to_string()),
         args: Some(vv![strings "-v", "${OPEN_API_GENERATOR_CLI_SCRIPT}",]),
@@ -380,6 +392,7 @@ impl NamedTask {
     Self {
       name: TaskNames::OpenapiCliBashInstall,
       task: Task {
+        category: Self::default_category(),
         description: Some(r#"Install Open API generator CLI'."#.to_string()),
         script: Some(ScriptValue::Text(trim_lines_vec(r#"
           #!/bin/bash
@@ -464,6 +477,7 @@ impl NamedTask {
     Self {
       name: TaskNames::OutputDirClean,
       task: Task {
+        category: Self::default_category(),
         description: Some(r#"Setup ${LIB_NAME} output dir at ${OUTPUT_DIR}'."#.to_string()),
         command: Some("rm".to_string()),
         args: Some(vv![strings "-rf", "${OUTPUT_DIR}/*", ]),
@@ -477,6 +491,7 @@ impl NamedTask {
     Self {
       name: TaskNames::OutputDirCreate,
       task: Task {
+        category: Self::default_category(),
         description: Some(r#"Create ${LIB_NAME} output dir at ${OUTPUT_DIR}'."#.to_string()),
         command: Some("mkdir".to_string()),
         // args: Some(vv![strings  "-p", "${OUTPUT_DIR}",  ]),
@@ -490,6 +505,7 @@ impl NamedTask {
     Self { 
       name: TaskNames::SpecDownloadDefault, 
       task: Task {
+        category: Self::default_category(),
         description: Some(r#"Downloads ${API_NAME} Open API specification from '${API_URL}'."#.to_string()),
         command: Some("wget".to_string()),
         args: Some(vv![ strings "${SPEC_FILE_URL}", "-O", "${SPEC_FILE_PATH}", ]),
@@ -502,6 +518,7 @@ impl NamedTask {
     Self { 
       name: TaskNames::SpecDownload, 
       task: Task {
+        category: Self::default_category(),
         description: Some(r#"Downloads ${API_NAME} Open API specification from specified vararg'."#.to_string()),
         command: Some("wget".to_string()),
         args: Some(vv![ strings "${@}", "-O", "${SPEC_FILE_PATH}", ]),
@@ -516,6 +533,7 @@ impl NamedTask {
     Self {
       name,
       task: Task {
+        category: Self::default_category(),
         description,
         command: Some("${OPEN_API_GENERATOR_CLI_SCRIPT}".to_string()),
         args: Some(vv![strings "validate", "--input-spec", "${SPEC_FILE_PATH}", "--recommend",]),

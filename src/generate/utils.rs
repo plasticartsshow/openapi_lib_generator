@@ -19,6 +19,16 @@ pub enum ProcessError {
   #[error("Process failed \n {0}")] Failure(String),
 }
 
+
+#[macro_export]
+/// Just makes a vec of specified items from arguments
+macro_rules! vv {
+  (strings $($e:expr,)*) => {{vec![$($e.to_string(),)* ]}};
+  (dep_names $($e:expr,)*) => {{vec![$(DependencyIdentifier::Name($e.to_string()),)* ]}};
+  (as_ref dep_names $($e:expr,)*) => {{ $crate::vv![dep_names $($e.as_ref(),)* ]}};
+} 
+
+
 /// Attempt to run a cargo job
 pub async fn run_cargo_job<T: AsRef<str>, P: AsRef<Path>>(
   args: &[T], 
@@ -54,14 +64,6 @@ pub async fn run_cargo_make_task<T: AsRef<str>>(cli: &Cli, task_name: T) -> Resu
   ).await
 }
 
-#[macro_export]
-/// Just makes a vec of specified items from arguments
-macro_rules! vv {
-  (strings $($e:expr,)*) => {{vec![$($e.to_string(),)* ]}};
-  (dep_names $($e:expr,)*) => {{vec![$(DependencyIdentifier::Name($e.to_string()),)* ]}};
-} 
-
-
 /// trim leading whitespace from multiline code resulting in a single string
 pub fn trim_lines(s: &str) -> String { trim_lines_vec(s).join("/n") }
 /// trim leading whitespace from multiline code resulting in a vec of strings
@@ -96,6 +98,9 @@ pub fn get_this_crate_name() -> &'static str {
 /// Get the version of this crate 
 pub fn get_this_crate_ver() -> &'static str {
   env!("CARGO_PKG_VERSION")
+}
+/// Get the version of this crate with a 'v'
+pub fn get_this_crate_ver_pretty() -> String { format!("v{}", get_this_crate_ver())
 }
 /// Get the temp root directory 
 pub fn get_temp_root_dir() -> PathBuf { env::temp_dir() }

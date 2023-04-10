@@ -121,7 +121,6 @@ pub enum SubCommands {
 }
 
 /// =================== OpenAPI client  crate generator ====================
-/// 
 ///  ___     ___     //=//  ___      /----\     ___  \\=\\     ___     ___
 /// /  /    /  /    //  \\  \  \    /  /\  \   /  /  //  \\    \  \    \  \
 /// |  \___/   \___// /\ \\__\  \__|  |__|  |_/  /__// /\ \\___/   \___/   |
@@ -137,11 +136,15 @@ pub enum SubCommands {
 ///   - (If you want to specify a different url):  Run`cargo make spec-download [YOUR_URL]` 
 /// 2. Run`cargo make generate-all`
 /// 
-/// The generated crate includes a `cargo-make` makefile with tasks for maintaining the crate
-/// Cargo-make default tasks are also supported. 
+/// The generated crate includes a `cargo-make` makefile with tasks for maintaining the crate.
+/// Cargo-make default tasks are also supported. For a full list, enter the generated crate and run
+/// `cargo make --list-all-steps`
 /// 
 /// This CLI will check for the presence of cargo make and try to install it if needed. 
-/// ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+///  _________       //=//  ___      _----_     ___  \\=\\       _________
+/// /  _____  \     //==\\  \ |_    /  __  \   _| /  //==\\     /  _____  \
+/// |  \___/   \___//=/\=\\__|  |__|  |__|  |_|  |__//=/\=\\___/   \___/   |
+///  \_/\_/\_/\__/\__/  \_____/\____/\/\/\/\___/\_____/  \__/\__/\_/\__/\_/ 
 #[derive(Clone, Debug, Deserialize, Parser, Serialize)]
 #[command(author, version, about, verbatim_doc_comment )]
 pub struct InnerCli {

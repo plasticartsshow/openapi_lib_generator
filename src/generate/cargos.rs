@@ -1,5 +1,5 @@
 //! Cargo files generation 
-use cargo_toml::{*, Error as CargoTomlError };
+use cargo_toml::{*, Edition, Error as CargoTomlError, Product };
 use crate::{cli::{Cli, InnerCli, Paths, SubCommands}, generate::{utils}, fs, vv,};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -14,6 +14,7 @@ use toml::{ser::Error as TomlSerError};
 pub enum CargoConfigError {
   #[error(transparent)] CargoTomlError(#[from]CargoTomlError),
   #[error(transparent)] TomlSerError(#[from]TomlSerError),
+  #[error("Updating from the Rust edition '{0:?}' is currently unsupported")] UpdateRustEditionError(Edition),
   #[error(transparent)] IOError(#[from]IOError),
 }
 
@@ -55,8 +56,55 @@ impl CargoConfigurator {
       subcommand_opt,
     })
   }
+
+  /// Update the given manifest edition value if possible
+  fn update_edition(description: &str, edition: &mut Edition) -> Result<String, CargoConfigError> {
+    let make_report = | e0, e1 | Ok(format!("Updated {description} from {e0:?} to {e1:?}"));
+    match *edition {
+      e0 @ Edition::E2015 => {
+        *edition = Edition::E2018;
+        make_report(e0, *edition)
+      },
+      e0 @ Edition::E2018 => {
+        *edition = Edition::E2021;
+        make_report(e0, *edition)
+      },
+      // e0 @ Edition::E2021 => {
+      //   *edition = Edition::E2024;
+      //   make_report(e0, *edition)
+      // },
+      // e0 @ Edition::E2024 => {
+      //   *edition = Edition::E2027;
+      //   make_report(e0, *edition)
+      // },
+      edition => { Err(CargoConfigError::UpdateRustEditionError(edition)) }
+    }    
+  }
+
+  /// Update a cargo.toml file **AFTER** cargo check --edition
+  pub async fn update_cargo_manifest_post_fix_edition(&self) -> Result<(), CargoConfigError> {
+    let cargo_toml_path = Paths::CargoTomlFile.get_str("path").expect("must get Cargo.toml path");
+    let cargo_manifest = &mut Manifest::<String>::from_path_with_metadata(cargo_toml_path)?;
+    let Manifest {
+      package, 
+      lib,
+      ..
+    } = cargo_manifest;
+    let p = package.get_or_insert_with(Default::default);
+    let package_update_desc = Self::update_edition("manifest package", p.edition.get_mut()?)?;
+    let lib_update_desc = lib.as_mut()
+      .map(|Product { edition, .. }|  Self::update_edition("manifest lib target", edition))
+      .unwrap_or_else(|| Ok(Default::default()))?;
+    fs::write(
+      cargo_toml_path, 
+      toml::to_string_pretty(cargo_manifest)?,
+      Some(&format!("updated cargo manifest edition post fix ({package_update_desc}, {lib_update_desc})"))
+    ).await?;    
+    Ok(())
+  }
+
   /// Update a cargo.toml file **AFTER** code generation
-  pub async fn update_cargo_toml(&self) -> Result<(), CargoConfigError> {
+  pub async fn update_cargo_manifest_post_generation(&self) -> Result<(), CargoConfigError> {
     // dbg!(self);
     let cargo_toml_path = Paths::CargoTomlFile.get_str("path").expect("must get Cargo.toml path");
     let cargo_manifest = &mut Manifest::<String>::from_path_with_metadata(cargo_toml_path)?;
@@ -111,7 +159,7 @@ impl CargoConfigurator {
     fs::write(
       cargo_toml_path, 
       toml::to_string_pretty(cargo_manifest)?,
-      Some("updated cargo.toml")
+      Some("updated cargo manifest post generation")
     ).await?;    
     Ok(())
   }
