@@ -68,7 +68,7 @@ pub async fn run_cargo_make_task<T: AsRef<str>>(
 
 /// trim leading whitespace from multiline code resulting in a single string
 pub fn trim_lines(s: &str) -> String {
-  trim_lines_vec(s).join("/n")
+  trim_lines_vec(s).join("\n")
 }
 /// trim leading whitespace from multiline code resulting in a vec of strings
 pub fn trim_lines_vec(s: &str) -> Vec<String> {

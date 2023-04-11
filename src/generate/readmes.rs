@@ -6,7 +6,10 @@ use crate::{
 };
 use fs_err::tokio as fs;
 use serde::{Deserialize, Serialize};
-use std::io::Error as IOError;
+use std::{
+  io::Error as IOError,
+  string::FromUtf8Error,
+};
 use strum::EnumProperty;
 use thiserror::Error;
 /// Errors that can happen with yaml generation
@@ -14,18 +17,19 @@ use thiserror::Error;
 pub enum READMEGenerationError {
   #[error(transparent)]
   IOError(#[from] IOError),
-  // #[error(transparent)] SerdeYAMLError(#[from] SerdeYAMLError),
+  #[error(transparent)] FromUtf8Error(#[from] FromUtf8Error),
 }
 
 /// Readme generation
 #[derive(Debug, Deserialize, Serialize)]
 #[allow(non_camel_case_types)]
 pub struct READMEGenerator {
-  readme_string: String,
+  start_readme_string: String,
+  end_readme_string: String,
 }
 impl READMEGenerator {
   /// Get the readme string contents
-  fn make_readme_string(cli: &Cli) -> String {
+  fn make_readme_strings(cli: &Cli) -> (String, String) {
     let lib_name = cli.get_lib_name();
     let this_crate_name = get_this_crate_name().to_string();
     let this_crate_ver = get_this_crate_ver().to_string();
@@ -52,7 +56,7 @@ impl READMEGenerator {
       api_spec_url_opt,
       ..
     } = &cli.inner_cli;
-    let mut s = format!("
+    let mut end = format!("
       {extra_authors}
 
       ## About working on `{lib_name}`
@@ -61,28 +65,36 @@ impl READMEGenerator {
       - Was *generated* using {this_crate_name} v{this_crate_ver} at {generation_timestamp}. 
       - Implements the [{site_or_api_name}]({api_url}).
       
-      
       For these reasons, proposed changes to this repository will likely not be accepted. Try proposing changes to the generator tools instead.
 
       ");
     if let Some(api_spec_url) = api_spec_url_opt {
-      s.push_str(&format!(
+      end.push_str(&format!(
         "\n- Uses the corresponding OpenAPI specification found at [{api_spec_url}]."
       ));
     }
-    trim_lines(&s)
+    let start = format!("
+      # {lib_name}
+    ");
+    (start, end)
   }
   /// Instantiate
   pub fn new(cli: &Cli) -> Result<Self, READMEGenerationError> {
-    let readme_string = Self::make_readme_string(cli);
-    Ok(Self { readme_string })
+    let (start_readme_string, end_readme_string) = Self::make_readme_strings(cli);
+    Ok(Self { end_readme_string, start_readme_string })
   }
   /// Write out to readme file
   pub async fn update_readme_md_file(&self) -> Result<(), READMEGenerationError> {
     let readme_path = Paths::ReadmeMdFile
       .get_str("path")
       .expect("must get Cargo.toml path");
-    fs::write(&readme_path, &self.readme_string).await?;
+    let mut readme_contents = fs::read(&readme_path).await
+      .map_or_else(
+        |_| Ok(format!("{}\n\n", &self.start_readme_string)),
+        |contents| String::from_utf8(contents)
+      )?;
+    readme_contents.push_str(&self.end_readme_string);
+    fs::write(&readme_path, &readme_contents).await?;
     println!("Wrote README.md `{readme_path:?}`");
     Ok(())
   }

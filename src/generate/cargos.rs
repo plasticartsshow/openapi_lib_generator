@@ -67,7 +67,14 @@ impl CargoConfigurator {
     description: &str,
     edition: &mut Edition,
   ) -> Result<String, CargoConfigError> {
-    let make_report = |e0, e1| Ok(format!("Updated {description} from {e0:?} to {e1:?}"));
+    let make_report = |e0, e1| {
+      if e0 != e1 {
+        Ok(format!("Updated {description} from {e0:?} to {e1:?}"))
+      } else {  
+        Ok(format!("Left {description} {e0:?} as {e1:?}"))
+      }
+    };
+    #[allow(unreachable_patterns)]
     match *edition {
       e0 @ Edition::E2015 => {
         *edition = Edition::E2018;
@@ -77,14 +84,22 @@ impl CargoConfigurator {
         *edition = Edition::E2021;
         make_report(e0, *edition)
       }
+      e0 @ Edition::E2021 => {
+        *edition = Edition::E2021;
+        make_report(e0, *edition)
+      },
+      // // uncomment the following match arm sometime in the year 2024
       // e0 @ Edition::E2021 => {
       //   *edition = Edition::E2024;
       //   make_report(e0, *edition)
       // },
+
+      // // uncomment the following match arm sometime in the year 2027
       // e0 @ Edition::E2024 => {
       //   *edition = Edition::E2027;
       //   make_report(e0, *edition)
       // },
+
       edition => Err(CargoConfigError::UpdateRustEditionError(edition)),
     }
   }
