@@ -6,10 +6,7 @@ use crate::{
 };
 use fs_err::tokio as fs;
 use serde::{Deserialize, Serialize};
-use std::{
-  io::Error as IOError,
-  string::FromUtf8Error,
-};
+use std::{io::Error as IOError, string::FromUtf8Error};
 use strum::EnumProperty;
 use thiserror::Error;
 /// Errors that can happen with yaml generation
@@ -17,7 +14,8 @@ use thiserror::Error;
 pub enum READMEGenerationError {
   #[error(transparent)]
   IOError(#[from] IOError),
-  #[error(transparent)] FromUtf8Error(#[from] FromUtf8Error),
+  #[error(transparent)]
+  FromUtf8Error(#[from] FromUtf8Error),
 }
 
 /// Readme generation
@@ -73,26 +71,30 @@ impl READMEGenerator {
         "\n- Uses the corresponding OpenAPI specification found at [{api_spec_url}]."
       ));
     }
-    let start = format!("
+    let start = format!(
+      "
       # {lib_name}
-    ");
-    (trim_lines(&start), trim_lines(&end),)
+    "
+    );
+    (trim_lines(&start), trim_lines(&end))
   }
   /// Instantiate
   pub fn new(cli: &Cli) -> Result<Self, READMEGenerationError> {
     let (start_readme_string, end_readme_string) = Self::make_readme_strings(cli);
-    Ok(Self { end_readme_string, start_readme_string })
+    Ok(Self {
+      end_readme_string,
+      start_readme_string,
+    })
   }
   /// Write out to readme file
   pub async fn update_readme_md_file(&self) -> Result<(), READMEGenerationError> {
     let readme_path = Paths::ReadmeMdFile
       .get_str("path")
       .expect("must get Cargo.toml path");
-    let mut readme_contents = fs::read(&readme_path).await
-      .map_or_else(
-        |_| Ok(format!("{}\n\n", &self.start_readme_string)),
-        |contents| String::from_utf8(contents)
-      )?;
+    let mut readme_contents = fs::read(&readme_path).await.map_or_else(
+      |_| Ok(format!("{}\n\n", &self.start_readme_string)),
+      |contents| String::from_utf8(contents),
+    )?;
     readme_contents.push_str(&self.end_readme_string);
     fs::write(&readme_path, &readme_contents).await?;
     println!("Wrote README.md `{readme_path:?}`");

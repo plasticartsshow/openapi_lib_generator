@@ -233,7 +233,8 @@ impl InnerCli {
   pub fn parse_authors_string(s: &str) -> Vec<String> {
     s.split(";")
       .filter(|s| !s.is_empty())
-      .map(|s| s.to_string()).collect()
+      .map(|s| s.to_string())
+      .collect()
   }
   /// Get spec file name as specified by [Self::api_spec_url]
   pub fn try_get_spec_file_name(&self) -> Result<String, ParameterError> {

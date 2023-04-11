@@ -70,7 +70,7 @@ impl CargoConfigurator {
     let make_report = |e0, e1| {
       if e0 != e1 {
         Ok(format!("Updated {description} from {e0:?} to {e1:?}"))
-      } else {  
+      } else {
         Ok(format!("Left {description} {e0:?} as {e1:?}"))
       }
     };
@@ -87,7 +87,7 @@ impl CargoConfigurator {
       e0 @ Edition::E2021 => {
         *edition = Edition::E2021;
         make_report(e0, *edition)
-      },
+      }
       // // uncomment the following match arm sometime in the year 2024
       // e0 @ Edition::E2021 => {
       //   *edition = Edition::E2024;
@@ -99,7 +99,6 @@ impl CargoConfigurator {
       //   *edition = Edition::E2027;
       //   make_report(e0, *edition)
       // },
-
       edition => Err(CargoConfigError::UpdateRustEditionError(edition)),
     }
   }

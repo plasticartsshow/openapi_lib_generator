@@ -290,14 +290,14 @@ impl NamedTask {
       default_crate_dependency_string
     };
     let mut script_lines = trim_lines_vec(&format!(
-      r#"
+      r##"
       //! ```cargo
       //! [dependencies]
       //! {this_crate_dependency_string}
       //! serde_yaml = {{ version = "0.9.19" }}
       //! tokio = {{ version = "1.26.0", features = ["full"] }}
       //! ```
-    "#
+    "##
     ));
     let mut script_body = trim_lines_vec(&format! {r###"
       use {this_crate_ident}::{{ 

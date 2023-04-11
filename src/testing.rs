@@ -11,6 +11,10 @@ pub static PETSTORE_YAML: &'static str = include_str!("testing/petstore.yaml");
 pub static TESTING_SPEC_FILE_NAME: &'static str = "petshoppe_test_spec.yaml";
 /// A testing folder name
 pub static TEST_SUBDIR_NAME: &'static str = "testing";
+/// A testing api url
+pub static TEST_API_URL: &'static str = "https://www.petshoppe.example";
+/// A testing api name
+pub static TEST_API_NAME: &'static str = "PetShoppe";
 /// Testing errors
 #[derive(Debug, Error)]
 pub enum TestingError {
