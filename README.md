@@ -25,7 +25,7 @@ As of now, there may be errors in the generated code. (Notably, [rustc error cod
 
 As of now, the generated code will be Rust 2018 edition. If the `autogeneration` cli option is `true` (default), the cli will try to update the edition automatically. 
 
-See the generated makefile for a task that also tries this, but the generated Cargo toml will require a manual update of the `package.edition` field.
+See the generated makefile for a task that also tries this. If using that option, the generated Cargo toml will require a manual update of the `package.edition` field.
 
 ### Contributing 
 After making changes in the generator crate, run `cargo make test-generate-with-local-path`. This will try generating a crate with the [OpenAPI Generator "Petstore" YAML spec](https://raw.githubusercontent.com/OpenAPITools/openapi-generator/master/modules/openapi-generator-gradle-plugin/samples/local-spec/petstore-v3.0.yaml).
