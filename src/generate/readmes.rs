@@ -62,8 +62,8 @@ impl READMEGenerator {
       ## About working on `{lib_name}`
       
       Hey! This library:
-      - Was *generated* using {this_crate_name} v{this_crate_ver} at {generation_timestamp}. 
-      - Implements the [{site_or_api_name}]({api_url}).
+      - Was *generated* using {this_crate_name} v{this_crate_ver} at {generation_timestamp}.  
+      - Implements the [{site_or_api_name}]({api_url}). 
       
       For these reasons, proposed changes to this repository will likely not be accepted. Try proposing changes to the generator tools instead.
 
@@ -76,7 +76,7 @@ impl READMEGenerator {
     let start = format!("
       # {lib_name}
     ");
-    (start, end)
+    (trim_lines(&start), trim_lines(&end),)
   }
   /// Instantiate
   pub fn new(cli: &Cli) -> Result<Self, READMEGenerationError> {

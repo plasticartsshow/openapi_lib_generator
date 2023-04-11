@@ -299,7 +299,7 @@ impl NamedTask {
       //! ```
     "#
     ));
-    let mut script_body = trim_lines_vec(&format! {r#"
+    let mut script_body = trim_lines_vec(&format! {r###"
       use {this_crate_ident}::{{ 
         cli::CLIError, 
         generate::{{
@@ -308,8 +308,8 @@ impl NamedTask {
         }} 
       }};
       mod yaml_specs {{
-        pub const CARGO_CONFIGURATOR_YAML: &'static str = "{cargo_configurator_yaml}";
-        pub const README_GENERATOR_YAML: &'static str = "{readme_generator_yaml}";
+        pub const CARGO_CONFIGURATOR_YAML: &'static str = r#"{cargo_configurator_yaml}"#;
+        pub const README_GENERATOR_YAML: &'static str = r#"{readme_generator_yaml}"#;
       }}
       #[tokio::main]
       async fn main() -> Result<(), CLIError> {{
@@ -321,7 +321,7 @@ impl NamedTask {
         println!("updates complete");
         Ok(())
       }}
-    "#});
+    "###});
     script_lines.extend(script_body.drain(0..));
     Ok(Self {
       name,
