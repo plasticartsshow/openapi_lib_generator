@@ -7,8 +7,8 @@ license = "MIT OR Apache-2.0"
 keywords = ["OpenAPI", "generator", "library"]
 categories = ["command-line-utilities", "development-tools", "web-programming"]
 description = "Rust openapi lib generator"
-repository = "https://github.com/plasticartsshow/openapi-lib-generator"
-documentation = "https://docs.rs/openapi-lib-generator"
+repository = "https://github.com/plasticartsshow/openapi_lib_generator"
+documentation = "https://docs.rs/openapi_lib_generator"
 readme = "README.md"
 
 [lib]
